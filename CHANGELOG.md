@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1
+**Desktop app (Windows)**
+- Fixed: **clicking the floating mic did nothing** on some Windows computers; only `Alt+Shift+D` opened the box. SayIt now reads the mouse straight from Windows, so one click opens the box and starts listening. Dragging the mic and right-click work the same way.
+- A double-click now counts as one click (before, it opened the box and closed it again at once).
+- New in the tray menu: **Open log (to report a problem)**.
+
 ## 0.8.0
 **Both**
 - New mode: **Polish (keeps my voice)**. Joins broken or half-finished English, fixes grammar and adds missing small words, while keeping your meaning and your own words.

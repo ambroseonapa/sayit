@@ -4,6 +4,7 @@ const fs = require("fs");
 const core = require("./core.js");
 const { typeText } = require("./paste.js");
 const caret = require("./caret.js");
+const winmouse = require("./winmouse.js");
 const S = require("./shared.js");
 
 const isMac = process.platform === "darwin";
@@ -42,6 +43,14 @@ function saveSettings(now) {
   clearTimeout(saveTimer);
   const write = () => { try { fs.mkdirSync(path.dirname(settingsFile), { recursive: true }); fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2)); } catch (e) { console.warn(e); } };
   if (now) write(); else saveTimer = setTimeout(write, 300);
+}
+// A small log file to help if something doesn't work (tray menu → "Open log").
+function debugLog(msg) {
+  try {
+    const f = path.join(app.getPath("userData"), "sayit-log.txt");
+    try { if (fs.statSync(f).size > 200000) fs.writeFileSync(f, ""); } catch {}
+    fs.appendFileSync(f, new Date().toISOString() + "  " + msg + "\n");
+  } catch {}
 }
 const themeResolved = () => (settings.theme === "light" ? "light" : settings.theme === "dark" ? "dark" : nativeTheme.shouldUseDarkColors ? "dark" : "light");
 const publicSettings = () => {
@@ -166,6 +175,7 @@ function trayMenu() {
     { label: "Start SayIt when computer starts", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin,
       click: (m) => app.setLoginItemSettings({ openAtLogin: m.checked }) },
     { label: "Settings…", click: openSettings },
+    { label: "Open log (to report a problem)", click: () => shell.openPath(path.join(app.getPath("userData"), "sayit-log.txt")) },
     update ? { label: "⬆ Update available: v" + update.version + " (download)", click: () => shell.openExternal(update.url) }
            : { label: "Check for updates", click: () => checkUpdate(true).then(() => openSettings()) },
     { type: "separator" },
@@ -265,16 +275,44 @@ ipcMain.on("panel-state", (_e, s) => {
   if (s === "idle" && panel) panel.hide();
   else if (panel && !panel.isVisible()) { panel.setBounds(panelBounds("tray")); panel.showInactive(); }
 });
-ipcMain.on("button-click", () => toggle("button"));
-ipcMain.on("drag", (_e, { dx, dy }) => {
+// One click on the mic = one start/stop. The same click can reach us twice (from Windows
+// directly and from the window), and a double-click is two clicks; both used to open the box
+// and close it again at once. So clicks less than 0.6 s apart count once.
+let lastButtonClick = 0;
+function buttonClick(from) {
+  const now = Date.now();
+  if (now - lastButtonClick < 600) return;
+  lastButtonClick = now;
+  debugLog("click from " + from + ", box was " + panelState);
+  toggle("button");
+}
+function dragButton(dx, dy) {
   const b = button.getBounds();
   button.setBounds({ ...b, x: b.x + dx, y: b.y + dy });
-});
-ipcMain.on("drag-end", () => {
+}
+function dragButtonEnd() {
   const b = clampToScreen(button.getBounds());
   button.setBounds(b);
   settings.pos = { x: b.x, y: b.y }; saveSettings();
-});
+}
+let lastMenu = 0;
+function buttonMenu() {
+  if (Date.now() - lastMenu < 600) return;
+  lastMenu = Date.now();
+  Menu.buildFromTemplate([
+    { label: "Settings…", click: openSettings },
+    { label: "Hide floating button", click: () => setShowBubble(false) },
+    { type: "separator" },
+    { label: "Quit SayIt", click: () => app.quit() }
+  ]).popup({ window: button });
+}
+// Windows: read the mouse straight from Windows (see winmouse.js). The window's own events
+// are kept only as a backup for clicks.
+let nativeMouse = false;
+ipcMain.handle("native-mouse", () => nativeMouse);
+ipcMain.on("button-click", () => { if (!(nativeMouse && winmouse.sawPress())) buttonClick("window"); });
+ipcMain.on("drag", (_e, { dx, dy }) => { if (!nativeMouse) dragButton(dx, dy); });
+ipcMain.on("drag-end", () => { if (!nativeMouse) dragButtonEnd(); });
 ipcMain.on("panel-move", (_e, { dx, dy }) => {
   const b = panel.getBounds();
   panel.setBounds({ ...b, x: b.x + dx, y: b.y + dy });
@@ -301,14 +339,7 @@ ipcMain.handle("panel:reset", () => {
   settings.panelW = PANEL_DEFAULT.w; settings.panelH = PANEL_DEFAULT.h; settings.panelPos = null; saveSettings();
   return true;
 });
-ipcMain.on("menu", () => {
-  Menu.buildFromTemplate([
-    { label: "Settings…", click: openSettings },
-    { label: "Hide floating button", click: () => setShowBubble(false) },
-    { type: "separator" },
-    { label: "Quit SayIt", click: () => app.quit() }
-  ]).popup({ window: button });
-});
+ipcMain.on("menu", () => { if (!(nativeMouse && winmouse.sawPress())) buttonMenu(); });
 ipcMain.on("open-url", (_e, url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); });
 ipcMain.handle("mic-access", async () => {
   if (isMac) {
@@ -348,6 +379,11 @@ app.whenReady().then(() => {
   createPanel();
   buildTray();
   caret.startTracking();
+  if (isWin && !TEST) nativeMouse = winmouse.start({
+    getButton: () => button, onClick: () => buttonClick("windows"),
+    onDrag: dragButton, onDragEnd: dragButtonEnd, onMenu: buttonMenu
+  });
+  debugLog("started v" + app.getVersion() + " on " + process.platform + ", direct mouse: " + nativeMouse);
   nativeTheme.on("updated", broadcast);
   if (!registerHotkey()) console.warn("SayIt: could not register", settings.hotkey);
   if (settings.firstRun && !TEST && (isWin || isMac)) {
@@ -379,7 +415,7 @@ function runTest() {
     if (how === "button") {
       // pretend the mouse rested in a text box at (300, 200) before moving to the button
       require("electron").screen.getCursorScreenPoint = () => ({ x: 300, y: 200 });
-      setTimeout(() => { button.webContents.executeJavaScript("document.getElementById('btn').dispatchEvent(new PointerEvent('pointerdown',{button:0,screenX:5,screenY:5,bubbles:true}));document.getElementById('btn').dispatchEvent(new PointerEvent('pointermove',{screenX:9,screenY:8,bubbles:true}));document.getElementById('btn').dispatchEvent(new PointerEvent('pointerup',{screenX:9,screenY:8,bubbles:true}));"); testLog({ event: "button-click" }); }, 700);
+      setTimeout(() => { button.webContents.executeJavaScript("document.getElementById('btn').dispatchEvent(new PointerEvent('pointerdown',{button:0,screenX:5,screenY:5,bubbles:true}));document.getElementById('btn').dispatchEvent(new PointerEvent('pointermove',{screenX:9,screenY:8,bubbles:true}));document.getElementById('btn').dispatchEvent(new PointerEvent('pointerup',{screenX:9,screenY:8,bubbles:true}));"); testLog({ event: "button-click" }); if (process.env.SAYIT_DOUBLE) setTimeout(() => { button.webContents.executeJavaScript("document.getElementById('btn').dispatchEvent(new MouseEvent('click',{bubbles:true}))"); testLog({ event: "second-click" }); }, 250); }, 700);
     } else { testLog({ event: "hotkey" }); toggle("hotkey"); }
   }, 1500);
   setTimeout(() => testLog({ event: "panel", bounds: panel.getBounds(), visible: panel.isVisible(), focusable: panel.isFocusable() }), 3500);

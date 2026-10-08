@@ -179,6 +179,7 @@ Don't dictate passwords or anything you wouldn't send to these services.
 | Desktop app types into the wrong place | Click in the box you want first, then use the shortcut instead of the button. |
 | Windows: some apps don't receive the text | Apps running "as administrator" block other apps from typing into them. Run SayIt as administrator too, or use a normal window. |
 | Mac: text is copied but not typed | Turn SayIt on under System Settings → Privacy & Security → **Accessibility**. |
+| Desktop: something doesn't work as it should | Right-click the SayIt icon in the tray / menu bar → **Open log (to report a problem)**, and send that file with your report. |
 
 ---
 
