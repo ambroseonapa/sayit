@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SayIt settings</title>
+<style>
+  :root { --ink:#1c1f26; --muted:#6b6862; --line:#e4dfd5; --bg:#faf7f1; --card:#fff; --accent:#e8492b; --ok:#1f7a3f; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:680px; margin:0 auto; padding:40px 20px 60px; }
+  h1 { font-size:30px; margin:0 0 4px; display:flex; align-items:center; gap:12px; }
+  h1 img { width:42px; height:42px; }
+  .lead { color:var(--muted); margin:0 0 28px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-bottom:16px; }
+  h2 { font-size:16px; margin:0 0 12px; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:8px 0; cursor:pointer; }
+  .opt input { margin-top:5px; accent-color:var(--accent); }
+  .opt b { display:block; }
+  .opt b small { font-weight:400; color:var(--muted); font-size:14px; }
+  .opt span { color:var(--muted); font-size:14px; }
+  label.f { display:block; font-size:14px; font-weight:600; margin:12px 0 4px; }
+  select, input[type=password], input[type=text], textarea { width:100%; font:inherit; padding:9px 11px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); }
+  textarea { min-height:90px; resize:vertical; }
+  .small { color:var(--muted); font-size:13.5px; margin:8px 0 0; }
+  .small a { color:var(--accent); }
+  button { font:inherit; font-weight:600; border:0; border-radius:9px; padding:9px 14px; background:var(--ink); color:#fff; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:default; }
+  .out { white-space:pre-wrap; background:var(--bg); border-radius:9px; padding:10px 12px; margin-top:10px; min-height:22px; }
+  .status { font-size:13.5px; margin-top:8px; }
+  .good { color:var(--ok); } .bad { color:#b3261e; }
+  .saved { position:fixed; right:20px; bottom:20px; background:var(--ok); color:#fff; padding:6px 12px; border-radius:8px; font-size:14px; opacity:0; transition:opacity .2s; }
+  .saved.on { opacity:1; }
+  kbd { background:#fff; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 6px; font-size:13px; }
+  ol { padding-left:20px; margin:0; } li { margin:4px 0; }
+  .row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+  .ai { border-top:1px solid var(--line); margin-top:8px; padding-top:4px; }
+  .sizes { display:flex; gap:10px; flex-wrap:wrap; }
+  .sizes label { border:1px solid var(--line); border-radius:10px; padding:8px 14px; cursor:pointer; display:flex; gap:8px; align-items:center; }
+  .sizes input { accent-color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1><img src="icons/icon128.png" alt="">SayIt</h1>
+  <p class="lead">Speak into any text box. Your words, with the grammar fixed, and nothing else changed.</p>
+
+  <section>
+    <h2>How to use it</h2>
+    <ol>
+      <li>Click inside any text box on a website.</li>
+      <li>Tap the SayIt icon in your toolbar, or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.</li>
+      <li>Speak. SayIt fixes the grammar while you're still talking.</li>
+      <li>Press <b>Done</b> or the shortcut again. Your text drops into the box. <kbd>Esc</kbd> cancels.</li>
+    </ol>
+    <p class="small">The first time on each website, Chrome asks for the microphone. Click Allow.</p>
+    <div class="row"><button class="ghost" id="shortcuts">Change the keyboard shortcut</button></div>
+  </section>
+
+  <section>
+    <h2>What should happen to your words?</h2>
+    <label class="opt"><input type="radio" name="mode" value="exact"><div><b>Exact words</b><span>Types exactly what you said.</span></div></label>
+    <label class="opt"><input type="radio" name="mode" value="grammar"><div><b>Fix grammar <small>(recommended)</small></b><span>Full stops, commas, question marks, capital letters and grammar mistakes. Never rephrases or swaps your words.</span></div></label>
+    <label class="opt"><input type="radio" name="mode" value="rephrase"><div><b>Rephrase</b><span>Rewrites it to read more clearly, same meaning. Needs an AI key below.</span></div></label>
+      <label class="opt"><input type="checkbox" id="undoBar"><div><b>Show Undo after inserting</b><span>A small pill with ↶ Undo and Original for 3 seconds. It disappears as soon as you carry on typing. Ctrl+Z always works too.</span></div></label>
+  </section>
+
+  <section>
+    <h2>How grammar gets fixed</h2>
+    <label class="opt"><input type="radio" name="engine" value="ai"><div><b>AI <small>(best: real grammar and punctuation)</small></b><span>Splits your speech into proper sentences with full stops, commas and capitals, and fixes grammar. Needs a key from any AI provider. Groq and Google Gemini give free keys.</span></div></label>
+    <div class="ai" id="aiBox">
+      <label class="f" for="provider">AI provider</label>
+      <select id="provider"></select>
+      <p class="small" id="provNote"></p>
+      <label class="f" for="key">API key</label>
+      <input type="password" id="key" autocomplete="off" placeholder="Paste your key here">
+      <p class="small"><a id="keyLink" target="_blank" rel="noopener">Get a key →</a> · Stored on this computer only, and sent only to the provider you chose.</p>
+      <div id="customBox">
+        <label class="f" for="customUrl">Address (ends in /chat/completions)</label>
+        <input type="text" id="customUrl" placeholder="https://…/v1/chat/completions">
+      </div>
+      <label class="f" for="model">Model <small style="font-weight:400;color:var(--muted)">(leave empty for the default)</small></label>
+      <input type="text" id="model">
+      <div class="row"><button id="testAi">Test speed</button><span class="status" id="aiStatus"></span></div>
+    </div>
+    <label class="opt"><input type="radio" name="engine" value="free"><div><b>Free, basic <small>(no key)</small></b><span>Puts a full stop each time you pause, a question mark after questions, and fixes simple grammar with LanguageTool. Less accurate than AI.</span></div></label>
+  </section>
+
+  <section>
+    <h2>Speech</h2>
+    <label class="f" for="lang">Language you speak</label>
+    <select id="lang">
+      <option value="en-GB">English (UK spelling)</option>
+      <option value="en-US">English (US spelling)</option>
+      <option value="en-KE">English (Kenya / East Africa)</option>
+      <option value="en-NG">English (Nigeria)</option>
+      <option value="en-ZA">English (South Africa)</option>
+      <option value="en-IN">English (India)</option>
+      <option value="sw-KE">Kiswahili (Kenya)</option>
+      <option value="sw-TZ">Kiswahili (Tanzania)</option>
+      <option value="fr-FR">Français</option>
+      <option value="es-ES">Español</option>
+      <option value="pt-PT">Português</option>
+      <option value="de-DE">Deutsch</option>
+    </select>
+    <label class="f">How your voice becomes text</label>
+    <label class="opt"><input type="radio" name="speech" value="chrome"><div><b>Instant <small>(recommended)</small></b><span>Chrome's own speech recognition. Words appear as you speak, and the text is ready the moment you press Done.</span></div></label>
+    <label class="opt"><input type="radio" name="speech" value="whisper"><div><b>Most accurate <small>(Whisper)</small></b><span>When you press Done, your recording is sent to Whisper, which is much better with accents, names and fast speech. Adds about 1–2 seconds. Uses your Groq key (or OpenAI key).</span></div></label>
+    <label class="opt"><input type="radio" name="speech" value="local"><div><b>On this computer</b><span>Works without internet, but is usually less accurate. Needs a one-time download.</span></div></label>
+    <div class="row" id="dlRow"><button class="ghost" id="dl">Download speech for this computer</button><span class="status" id="dlStatus"></span></div>
+    <label class="f" for="vocab">Names and words SayIt should know</label>
+    <textarea id="vocab" style="min-height:64px" placeholder="Okidi, Patrovas, Oyam, Makerere, Lonyo, Chevening"></textarea>
+    <p class="small">Separate with commas. Whisper and the AI grammar fixer will spell these exactly like this.</p>
+    <label class="f" for="autoStop">Finish by itself when I stop talking</label>
+    <select id="autoStop">
+      <option value="0">Off, I'll press Done</option>
+      <option value="2">After 2 seconds of silence</option>
+      <option value="3">After 3 seconds of silence</option>
+      <option value="5">After 5 seconds of silence</option>
+    </select>
+    <label class="opt"><input type="checkbox" id="spokenPunct"><div><b>Spoken punctuation</b><span>Say "comma", "full stop", "question mark", "new line" to type them.</span></div></label>
+    <label class="opt"><input type="checkbox" id="autoPunct"><div><b>Full stop when I pause</b><span>Free mode only. (AI mode punctuates by itself.)</span></div></label>
+  </section>
+
+  <section>
+    <h2>Size of the listening box</h2>
+    <div class="sizes">
+      <label><input type="radio" name="size" value="m"> Medium</label>
+      <label><input type="radio" name="size" value="l"> Large</label>
+      <label><input type="radio" name="size" value="xl"> Extra large</label>
+    </div>
+    <p class="small">You can also change it any time with the A− / A+ buttons on the box.</p>
+  </section>
+
+  <section>
+    <h2>Try the grammar fix</h2>
+    <textarea id="sample">me and my team was going to the field yesterday we collect the data from twenty farmers in oyam how many of them use fertiliser most of them said they cant afford it</textarea>
+    <div class="row"><button id="test">Fix grammar</button><span class="status" id="testTime"></span></div>
+    <div class="out" id="out"></div>
+  </section>
+</main>
+<div class="saved" id="saved">Saved ✓</div>
+<script src="shared.js"></script>
+<script src="options.js"></script>
+</body>
+</html>
