@@ -1,41 +1,80 @@
-# Builds the downloads and attaches them to a GitHub Release.
+# Builds the downloads and publishes them as a GitHub Release.
 #
-# How to release a new version:
+# How to release a new version (the easy way):
 #   1. Change the version number in extension/manifest.json AND desktop/package.json (e.g. 0.6.0).
-#   2. Commit and push.
-#   3. On GitHub: Releases → "Draft a new release" → tag "v0.6.0" → Publish.
-#   This workflow then builds everything (about 10 minutes) and adds the files to that release.
-#   You can also run it by hand from the Actions tab ("Run workflow") to test a build.
+#   2. Add a "## 0.6.0" section at the top of CHANGELOG.md (it becomes the release notes).
+#   3. Commit and push to main.
+#   That's it. If there's no release v0.6.0 yet, this workflow builds everything (about 10–15 minutes),
+#   creates the release and attaches the downloads. Pushes that don't change the version build nothing.
+#
+# You can also publish a release or push a tag (v0.6.0) by hand, or use "Run workflow" in the
+# Actions tab: tick "publish" to release the current version, or leave it unticked to just test a build.
 
 name: Build and release
 
 on:
+  push:
+    branches: [main]
+    paths: ["extension/manifest.json", "desktop/package.json", ".github/workflows/release.yml"]
+    tags: ["v*"]
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a release for the current version"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  check-versions:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      build: ${{ steps.v.outputs.build }}
+      publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
-      - name: Versions must match the release tag
-        if: github.event_name == 'release'
+      - id: v
+        env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          TAG="${{ github.event.release.tag_name }}"; TAG="${TAG#v}"
           EXT=$(jq -r .version extension/manifest.json)
           DESK=$(jq -r .version desktop/package.json)
-          echo "tag=$TAG extension=$EXT desktop=$DESK"
-          if [ "$TAG" != "$EXT" ] || [ "$TAG" != "$DESK" ]; then
-            echo "::error::Release tag v$TAG doesn't match extension/manifest.json ($EXT) or desktop/package.json ($DESK). Update both, push, and publish the release again."
+          echo "extension=$EXT desktop=$DESK"
+          if [ "$EXT" != "$DESK" ]; then
+            echo "::error::extension/manifest.json ($EXT) and desktop/package.json ($DESK) must have the same version."
             exit 1
           fi
+          echo "version=$EXT" >> "$GITHUB_OUTPUT"
+          TAGNAME="${{ github.event.release.tag_name }}"
+          if [ -z "$TAGNAME" ] && [ "${{ github.ref_type }}" = "tag" ]; then TAGNAME="${{ github.ref_name }}"; fi
+          if [ -n "$TAGNAME" ] && [ "${TAGNAME#v}" != "$EXT" ]; then
+            echo "::error::Tag $TAGNAME doesn't match the version in the files ($EXT)."
+            exit 1
+          fi
+          EXISTS=no; gh release view "v$EXT" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && EXISTS=yes
+          case "${{ github.event_name }}" in
+            workflow_dispatch) BUILD=yes; PUBLISH=${{ inputs.publish || false }} ;;
+            release) BUILD=yes; PUBLISH=true ;;
+            push)
+              if [ -n "$TAGNAME" ]; then BUILD=yes; PUBLISH=true
+              elif [ "$EXISTS" = yes ]; then BUILD=no; PUBLISH=false; echo "Release v$EXT already exists: nothing to do."
+              else BUILD=yes; PUBLISH=true; fi ;;
+          esac
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "version=$EXT build=$BUILD publish=$PUBLISH"
 
   extension:
-    needs: check-versions
+    needs: plan
+    if: needs.plan.outputs.build == 'yes'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,13 +82,10 @@ jobs:
         run: cd extension && zip -r ../SayIt-Chrome-extension.zip . -x '.*'
       - uses: actions/upload-artifact@v4
         with: { name: chrome-extension, path: SayIt-Chrome-extension.zip }
-      - name: Attach to release
-        if: github.event_name == 'release'
-        env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release upload "${{ github.event.release.tag_name }}" SayIt-Chrome-extension.zip --clobber
 
   windows:
-    needs: check-versions
+    needs: plan
+    if: needs.plan.outputs.build == 'yes'
     runs-on: windows-latest
     defaults: { run: { working-directory: desktop } }
     steps:
@@ -64,14 +100,10 @@ jobs:
           path: |
             desktop/dist/SayIt-Setup-Windows.exe
             desktop/dist/SayIt-Windows-portable.zip
-      - name: Attach to release
-        if: github.event_name == 'release'
-        shell: bash
-        env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/SayIt-Setup-Windows.exe dist/SayIt-Windows-portable.zip --clobber
 
   mac:
-    needs: check-versions
+    needs: plan
+    if: needs.plan.outputs.build == 'yes'
     runs-on: macos-latest
     defaults: { run: { working-directory: desktop } }
     steps:
@@ -92,7 +124,24 @@ jobs:
           path: |
             desktop/SayIt-Mac-AppleSilicon.zip
             desktop/SayIt-Mac-Intel.zip
-      - name: Attach to release
-        if: github.event_name == 'release'
-        env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release upload "${{ github.event.release.tag_name }}" SayIt-Mac-AppleSilicon.zip SayIt-Mac-Intel.zip --clobber
+
+  publish:
+    needs: [plan, extension, windows, mac]
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Create the release (if needed) and attach the downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.plan.outputs.version }}
+        run: |
+          awk -v v="$V" '$0 ~ "^## "v"( |$)"{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          printf '\n---\nInstall steps: see the [README](https://github.com/%s#readme).\n' "$GITHUB_REPOSITORY" >> notes.md
+          if ! gh release view "v$V" >/dev/null 2>&1; then
+            gh release create "v$V" --title "SayIt $V" --notes-file notes.md --target "$GITHUB_SHA"
+          fi
+          gh release upload "v$V" out/* --clobber
+          ls -la out

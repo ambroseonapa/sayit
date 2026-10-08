@@ -181,9 +181,10 @@ npm start
 ```
 
 **Release a new version**
-1. Change the version in **both** `extension/manifest.json` and `desktop/package.json` (for example `0.6.0`), and add a `## 0.6.0` section to the top of `CHANGELOG.md`.
-2. Commit and push.
-3. Create the tag `v0.6.0`: on GitHub use **Releases → Draft a new release → choose a tag → v0.6.0 → Publish**, or in a terminal run `git tag v0.6.0 && git push origin v0.6.0`.
-4. GitHub Actions builds the Chrome zip, the Windows installer and both Mac apps (about 10–15 minutes), creates the release if needed, and attaches the files. Everyone's SayIt will then see the update.
+1. Change the version in **both** `extension/manifest.json` and `desktop/package.json` (for example `0.6.0`).
+2. Add a `## 0.6.0` section at the top of `CHANGELOG.md`. It becomes the release notes.
+3. Commit and push to `main`.
+
+That's all. GitHub Actions notices the new version, builds the Chrome zip, the Windows installer and both Mac apps (about 10–15 minutes), and publishes the release with the files attached. Everyone's SayIt then shows the update. Pushes that don't change the version don't build anything. You can follow the build in the **Actions** tab.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
