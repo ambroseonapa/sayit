@@ -1,0 +1,82 @@
+{
+  "name": "sayit-desktop",
+  "productName": "SayIt",
+  "version": "0.5.0",
+  "description": "Speak and your words are typed into any app, with the grammar fixed.",
+  "main": "src/main.js",
+  "author": "ambroseonapa",
+  "license": "UNLICENSED",
+  "scripts": {
+    "sync-shared": "node scripts/sync-shared.js",
+    "start": "npm run sync-shared && electron .",
+    "dist:win": "npm run sync-shared && electron-builder --win nsis zip --x64 --publish never",
+    "dist:mac": "npm run sync-shared && electron-builder --mac dir --arm64 --x64 --publish never"
+  },
+  "dependencies": {
+    "koffi": "^2.9.0"
+  },
+  "devDependencies": {
+    "electron": "38.2.0",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "org.sayit.desktop",
+    "productName": "SayIt",
+    "files": [
+      "src/**",
+      "assets/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "files": [
+        "!node_modules/koffi/build/koffi/!(win32_x64|win32_arm64)/**"
+      ],
+      "artifactName": "SayIt-Windows-portable.${ext}"
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "SayIt listens to your voice to type what you say.",
+        "LSUIElement": true
+      },
+      "files": [
+        "!node_modules/koffi/build/koffi/**"
+      ]
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "electronLanguages": [
+      "en-US",
+      "en-GB",
+      "fr",
+      "sw",
+      "es",
+      "pt-PT",
+      "de"
+    ],
+    "publish": null,
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "SayIt-Setup-Windows.${ext}",
+      "shortcutName": "SayIt",
+      "createDesktopShortcut": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ambroseonapa/sayit.git"
+  }
+}

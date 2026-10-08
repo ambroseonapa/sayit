@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<style>
+  html, body { margin:0; height:100%; background:transparent; overflow:hidden; user-select:none;
+    font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#f4f1ea; }
+  /* collapsed: round button */
+  #btn { position:absolute; left:4px; top:4px; width:calc(100vw - 8px); height:calc(100vh - 8px); border-radius:50%; background:#1c1f26;
+    display:grid; place-items:center; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.35); transition:transform .12s; }
+  #btn:hover { transform:scale(1.06); }
+  #btn svg { width:46%; height:46%; }
+  body.exp #btn { display:none; }
+  /* expanded: panel */
+  #panel { display:none; position:absolute; inset:4px; background:#1c1f26; border-radius:18px; box-shadow:0 8px 24px rgba(0,0,0,.4);
+    padding:12px 14px; box-sizing:border-box; flex-direction:column; }
+  body.exp #panel { display:flex; }
+  .row { display:flex; align-items:center; gap:8px; }
+  .dot { width:11px; height:11px; border-radius:50%; background:#ff5a3c; flex:none; animation:pulse 1.3s infinite; }
+  body.working .dot { background:#f5b83d; animation:spin .8s linear infinite; border-radius:3px; }
+  body.done .dot { background:#7fd99a; animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(255,90,60,.6)} 70%{box-shadow:0 0 0 9px rgba(255,90,60,0)} 100%{box-shadow:0 0 0 0 rgba(255,90,60,0)} }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #status { font-weight:650; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #time { color:#8c8a85; font-variant-numeric:tabular-nums; font-size:13px; }
+  .pill { background:#2c313c; color:#f4f1ea; border:1px solid #3a404d; border-radius:999px; padding:3px 10px; font:inherit; font-size:12.5px; cursor:pointer; }
+  .pill:hover { border-color:#ff5a3c; }
+  .pill, button.act, #time { white-space:nowrap; flex:none; }
+  #status { min-width:5.6em; }
+  body.sz-m #meter { display:none; }
+  button.act { border:0; border-radius:9px; padding:6px 13px; font:inherit; font-weight:650; cursor:pointer; }
+  #done { background:#ff5a3c; color:#fff; } #done:hover { background:#ff7154; }
+  #cancel { background:transparent; color:#b8b4ab; } #cancel:hover { color:#fff; }
+  button:disabled { opacity:.45; cursor:default; }
+  #text { flex:1; margin-top:9px; overflow:auto; white-space:pre-wrap; word-wrap:break-word; background:#14161b; border-radius:10px;
+    padding:8px 10px; font-size:var(--t, 19px); line-height:1.45; color:#fbf8f2; user-select:text; }
+  body.sz-m { --t:16px; } body.sz-l { --t:19px; } body.sz-xl { --t:24px; }
+  body.sz-xl #panel { font-size:16.5px; }
+  .size { display:inline-flex; border:1px solid #3a404d; border-radius:999px; overflow:hidden; }
+  .size button { background:#2c313c; color:#f4f1ea; border:0; font:inherit; font-size:12px; padding:3px 8px; cursor:pointer; }
+  .size button + button { border-left:1px solid #3a404d; }
+  .size button:hover { background:#3a404d; }
+  #text .wait { color:#9a978f; }
+  #text .hint { color:#8c8a85; font-size:15px; }
+  #meter { display:flex; gap:3px; align-items:center; height:18px; margin-left:4px; }
+  #meter i { width:3px; border-radius:2px; background:#ff8a6e; height:3px; transition:height .08s; }
+  .foot { margin-top:6px; font-size:12px; color:#8c8a85; display:flex; justify-content:space-between; gap:8px; }
+  .foot a { color:#ffb199; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div id="btn" title="SayIt: click to speak · right-click for menu">
+    <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" fill="#ff5a3c"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0" stroke="#ff5a3c" stroke-width="2" stroke-linecap="round"/><path d="M12 17.5V21M9 21h6" stroke="#ff5a3c" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+  <div id="panel">
+    <div class="row">
+      <span class="dot"></span><span id="status">Listening…</span>
+      <span id="meter"></span><span id="time">0:00</span>
+      <span class="size"><button id="smaller" title="Smaller text box">A−</button><button id="bigger" title="Bigger text box">A+</button></span>
+      <button class="pill" id="mode"></button>
+      <button class="act" id="cancel">Cancel</button>
+      <button class="act" id="done">Done</button>
+    </div>
+    <div id="text"></div>
+    <div class="foot"><span id="hk"></span><a id="settings">Settings</a></div>
+  </div>
+<script src="bubble.js"></script>
+</body>
+</html>

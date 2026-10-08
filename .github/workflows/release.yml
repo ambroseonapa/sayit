@@ -1,0 +1,98 @@
+# Builds the downloads and attaches them to a GitHub Release.
+#
+# How to release a new version:
+#   1. Change the version number in extension/manifest.json AND desktop/package.json (e.g. 0.6.0).
+#   2. Commit and push.
+#   3. On GitHub: Releases → "Draft a new release" → tag "v0.6.0" → Publish.
+#   This workflow then builds everything (about 10 minutes) and adds the files to that release.
+#   You can also run it by hand from the Actions tab ("Run workflow") to test a build.
+
+name: Build and release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versions must match the release tag
+        if: github.event_name == 'release'
+        run: |
+          TAG="${{ github.event.release.tag_name }}"; TAG="${TAG#v}"
+          EXT=$(jq -r .version extension/manifest.json)
+          DESK=$(jq -r .version desktop/package.json)
+          echo "tag=$TAG extension=$EXT desktop=$DESK"
+          if [ "$TAG" != "$EXT" ] || [ "$TAG" != "$DESK" ]; then
+            echo "::error::Release tag v$TAG doesn't match extension/manifest.json ($EXT) or desktop/package.json ($DESK). Update both, push, and publish the release again."
+            exit 1
+          fi
+
+  extension:
+    needs: check-versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip the Chrome extension
+        run: cd extension && zip -r ../SayIt-Chrome-extension.zip . -x '.*'
+      - uses: actions/upload-artifact@v4
+        with: { name: chrome-extension, path: SayIt-Chrome-extension.zip }
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh release upload "${{ github.event.release.tag_name }}" SayIt-Chrome-extension.zip --clobber
+
+  windows:
+    needs: check-versions
+    runs-on: windows-latest
+    defaults: { run: { working-directory: desktop } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: desktop/package-lock.json }
+      - run: npm ci
+      - run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            desktop/dist/SayIt-Setup-Windows.exe
+            desktop/dist/SayIt-Windows-portable.zip
+      - name: Attach to release
+        if: github.event_name == 'release'
+        shell: bash
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/SayIt-Setup-Windows.exe dist/SayIt-Windows-portable.zip --clobber
+
+  mac:
+    needs: check-versions
+    runs-on: macos-latest
+    defaults: { run: { working-directory: desktop } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: desktop/package-lock.json }
+      - run: npm ci
+      - run: npm run dist:mac
+      - name: Sign for this Mac only (ad-hoc) and zip
+        run: |
+          codesign --force --deep --sign - dist/mac-arm64/SayIt.app
+          codesign --force --deep --sign - dist/mac/SayIt.app
+          ditto -c -k --keepParent dist/mac-arm64/SayIt.app SayIt-Mac-AppleSilicon.zip
+          ditto -c -k --keepParent dist/mac/SayIt.app SayIt-Mac-Intel.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: |
+            desktop/SayIt-Mac-AppleSilicon.zip
+            desktop/SayIt-Mac-Intel.zip
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh release upload "${{ github.event.release.tag_name }}" SayIt-Mac-AppleSilicon.zip SayIt-Mac-Intel.zip --clobber

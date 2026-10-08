@@ -35,6 +35,11 @@ async function load() {
   $("spokenPunct").checked = S.spokenPunct;
   $("autoPunct").checked = S.autoPunct;
   $("undoBar").checked = S.undoBar;
+  $("fillers").checked = S.fillers;
+  $("tone").value = S.tone || "natural";
+  $("ver").textContent = "v" + chrome.runtime.getManifest().version;
+  const { update } = await chrome.storage.local.get("update");
+  showUpdate(update);
   document.querySelector(`input[name=speech][value=${S.speech}]`).checked = true;
   $("vocab").value = S.vocab || "";
   $("autoStop").value = String(S.autoStop || 0);
@@ -49,7 +54,8 @@ $("lang").addEventListener("change", () => { setSync({ lang: $("lang").value });
 document.querySelectorAll("input[name=speech]").forEach((r) => r.addEventListener("change", () => { setSync({ speech: r.value }); checkOffline(); }));
 $("vocab").addEventListener("change", () => setSync({ vocab: $("vocab").value.trim() }));
 $("autoStop").addEventListener("change", () => setSync({ autoStop: Number($("autoStop").value) }));
-for (const id of ["spokenPunct", "autoPunct", "undoBar"]) $(id).addEventListener("change", () => setSync({ [id]: $(id).checked }));
+$("tone").addEventListener("change", () => setSync({ tone: $("tone").value }));
+for (const id of ["spokenPunct", "autoPunct", "undoBar", "fillers"]) $(id).addEventListener("change", () => setSync({ [id]: $(id).checked }));
 
 $("provider").addEventListener("change", () => { setSync({ provider: $("provider").value }); showProvider(); });
 $("key").addEventListener("change", async () => {
@@ -132,3 +138,17 @@ $("dl").addEventListener("click", async () => {
 });
 
 load();
+
+function showUpdate(u) {
+  if (!u || !sayitNewer(u.version, chrome.runtime.getManifest().version)) { $("updateBox").hidden = true; return false; }
+  $("newVer").textContent = "v" + u.version;
+  $("newLink").href = u.url;
+  $("updateBox").hidden = false;
+  return true;
+}
+$("checkUpd").addEventListener("click", async (e) => {
+  e.preventDefault();
+  $("checkUpd").textContent = "Checking…";
+  const u = await chrome.runtime.sendMessage({ type: "checkUpdate" });
+  $("checkUpd").textContent = showUpdate(u) ? "New version found ↑" : "You have the latest version ✓";
+});

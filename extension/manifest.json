@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SayIt \u2013 speak into any text box",
+  "name": "SayIt – speak into any text box",
   "short_name": "SayIt",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Tap the mic, speak, and your words land in the box you're typing in, with grammar and punctuation fixed. It never rewrites you unless you ask.",
   "icons": {
     "16": "icons/icon16.png",
@@ -23,7 +23,8 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "alarms"
   ],
   "host_permissions": [
     "https://api.languagetool.org/*",
@@ -31,7 +32,8 @@
     "https://generativelanguage.googleapis.com/*",
     "https://api.openai.com/*",
     "https://api.anthropic.com/*",
-    "https://openrouter.ai/*"
+    "https://openrouter.ai/*",
+    "https://api.github.com/*"
   ],
   "commands": {
     "_execute_action": {
@@ -46,5 +48,6 @@
   "optional_host_permissions": [
     "https://*/*",
     "http://localhost/*"
-  ]
+  ],
+  "homepage_url": "https://github.com/ambroseonapa/sayit"
 }

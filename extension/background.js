@@ -17,7 +17,34 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
+// ---------- "new version available" check (once a day, GitHub releases) ----------
+async function checkUpdate(force) {
+  const { lastCheck = 0 } = await chrome.storage.local.get("lastCheck");
+  if (!force && Date.now() - lastCheck < 20 * 3600 * 1000) return;
+  await chrome.storage.local.set({ lastCheck: Date.now() });
+  try {
+    const r = await fetch(`https://api.github.com/repos/${SAYIT_REPO}/releases/latest`, { headers: { accept: "application/vnd.github+json" } });
+    if (!r.ok) return;
+    const rel = await r.json();
+    const latest = String(rel.tag_name || "").replace(/^v/, "");
+    const mine = chrome.runtime.getManifest().version;
+    if (latest && sayitNewer(latest, mine)) {
+      await chrome.storage.local.set({ update: { version: latest, url: rel.html_url } });
+      chrome.action.setBadgeBackgroundColor({ color: "#1f7a3f" });
+      chrome.action.setBadgeText({ text: "new" });
+      chrome.action.setTitle({ title: `SayIt: version ${latest} is available. Open SayIt settings to update.` });
+    } else {
+      await chrome.storage.local.remove("update");
+      chrome.action.setBadgeText({ text: "" });
+    }
+  } catch {}
+}
+chrome.runtime.onStartup.addListener(() => checkUpdate(false));
+chrome.alarms && chrome.alarms.create("sayit-update", { periodInMinutes: 24 * 60 });
+chrome.alarms && chrome.alarms.onAlarm.addListener((a) => a.name === "sayit-update" && checkUpdate(false));
+
 chrome.runtime.onInstalled.addListener(async (d) => {
+  checkUpdate(true);
   // Move settings from version 0.1
   const old = await chrome.storage.sync.get(["engine"]);
   if (old.engine === "languagetool") await chrome.storage.sync.set({ engine: "free" });
@@ -45,6 +72,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   }
   if (msg && msg.type === "warm") { warm(); }
   if (msg && msg.type === "openOptions") chrome.runtime.openOptionsPage();
+  if (msg && msg.type === "checkUpdate") { checkUpdate(true).then(() => chrome.storage.local.get("update")).then((u) => reply(u.update || null)); return true; }
 });
 
 async function getSettings() {
@@ -53,11 +81,6 @@ async function getSettings() {
   return { ...sync, keys };
 }
 
-function withVocab(prompt, vocab) {
-  const v = (vocab || "").split(/[,\n]+/).map((w) => w.trim()).filter(Boolean);
-  if (!v.length) return prompt;
-  return prompt + "\nThese names and words are spelled exactly like this (speech recognition may have misheard them as similar-sounding words; correct them back): " + v.join(", ") + ".";
-}
 
 function aiConfig(s) {
   const p = SAYIT_PROVIDERS[s.provider];
@@ -88,12 +111,12 @@ async function polish(text, mode) {
 
   if (mode === "rephrase") {
     if (!ai) return { text, changes: 0, note: "Rephrase needs an AI key (SayIt settings). Inserted your exact words." };
-    const out = await callAI(ai, withVocab(SAYIT_REPHRASE_PROMPT, s.vocab), text);
+    const out = await callAI(ai, sayitPrompt("rephrase", s), text);
     return { text: out, changes: sayitWordsChanged(text, out).changed, rephrased: true };
   }
 
   if (s.engine === "ai" && ai) {
-    const out = await callAI(ai, withVocab(SAYIT_GRAMMAR_PROMPT, s.vocab), text);
+    const out = await callAI(ai, sayitPrompt("grammar", s), text);
     const d = sayitWordsChanged(text, out);
     // Safety net: grammar mode must not rewrite you.
     if (d.total >= 6 && d.ratio > 0.4) {
@@ -101,7 +124,7 @@ async function polish(text, mode) {
     }
     return { text: out, changes: d.changed || (out !== text ? 1 : 0), ai: true };
   }
-  return await languageTool(text, s.lang);
+  return await languageTool(s.fillers ? sayitRemoveFillers(text) : text, s.lang);
 }
 
 function withTimeout(ms) {

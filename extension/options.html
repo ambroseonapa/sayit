@@ -30,6 +30,12 @@
   .out { white-space:pre-wrap; background:var(--bg); border-radius:9px; padding:10px 12px; margin-top:10px; min-height:22px; }
   .status { font-size:13.5px; margin-top:8px; }
   .good { color:var(--ok); } .bad { color:#b3261e; }
+  .update { display:flex; flex-direction:column; gap:4px; background:#ecf7ef; border:1px solid #b9e0c4; color:#174f2a; border-radius:14px; padding:14px 18px; margin-bottom:16px; }
+  .update[hidden] { display:none; }
+  .update span { font-size:14px; }
+  .update a { color:#1f7a3f; font-weight:700; }
+  .foot { color:var(--muted); font-size:13px; text-align:center; margin-top:18px; }
+  .foot a { color:var(--muted); }
   .saved { position:fixed; right:20px; bottom:20px; background:var(--ok); color:#fff; padding:6px 12px; border-radius:8px; font-size:14px; opacity:0; transition:opacity .2s; }
   .saved.on { opacity:1; }
   kbd { background:#fff; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 6px; font-size:13px; }
@@ -45,6 +51,11 @@
 <main>
   <h1><img src="icons/icon128.png" alt="">SayIt</h1>
   <p class="lead">Speak into any text box. Your words, with the grammar fixed, and nothing else changed.</p>
+  <div id="updateBox" class="update" hidden>
+    <b>A new version of SayIt is out: <span id="newVer"></span></b>
+    <span>Download it, replace the files in your SayIt folder, then click the reload arrow on SayIt in chrome://extensions. Your key and settings stay.</span>
+    <a id="newLink" target="_blank" rel="noopener">Download the new version →</a>
+  </div>
 
   <section>
     <h2>How to use it</h2>
@@ -63,7 +74,15 @@
     <label class="opt"><input type="radio" name="mode" value="exact"><div><b>Exact words</b><span>Types exactly what you said.</span></div></label>
     <label class="opt"><input type="radio" name="mode" value="grammar"><div><b>Fix grammar <small>(recommended)</small></b><span>Full stops, commas, question marks, capital letters and grammar mistakes. Never rephrases or swaps your words.</span></div></label>
     <label class="opt"><input type="radio" name="mode" value="rephrase"><div><b>Rephrase</b><span>Rewrites it to read more clearly, same meaning. Needs an AI key below.</span></div></label>
-      <label class="opt"><input type="checkbox" id="undoBar"><div><b>Show Undo after inserting</b><span>A small pill with ↶ Undo and Original for 3 seconds. It disappears as soon as you carry on typing. Ctrl+Z always works too.</span></div></label>
+      <label class="opt"><input type="checkbox" id="fillers"><div><b>Remove "um", "uh" and stutters</b><span>"um so I I I think" becomes "so I think". Real words are never removed.</span></div></label>
+    <label class="f" for="tone">Rephrase style</label>
+    <select id="tone">
+      <option value="natural">Natural (keep my level of formality)</option>
+      <option value="formal">Formal (emails, applications, reports)</option>
+      <option value="friendly">Friendly (messages to colleagues and friends)</option>
+      <option value="concise">Short and clear</option>
+    </select>
+    <label class="opt"><input type="checkbox" id="undoBar"><div><b>Show Undo after inserting</b><span>A small pill with ↶ Undo and Original for 3 seconds. It disappears as soon as you carry on typing. Ctrl+Z always works too.</span></div></label>
   </section>
 
   <section>
@@ -139,6 +158,7 @@
     <div class="row"><button id="test">Fix grammar</button><span class="status" id="testTime"></span></div>
     <div class="out" id="out"></div>
   </section>
+  <p class="foot">SayIt <span id="ver"></span> · <a id="checkUpd" href="#">Check for updates</a> · <a href="https://github.com/ambroseonapa/sayit" target="_blank" rel="noopener">GitHub</a></p>
 </main>
 <div class="saved" id="saved">Saved ✓</div>
 <script src="shared.js"></script>

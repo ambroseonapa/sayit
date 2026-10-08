@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'">
+<title>SayIt settings</title>
+<style>
+  :root { --ink:#1c1f26; --muted:#6b6862; --line:#e4dfd5; --bg:#faf7f1; --card:#fff; --accent:#e8492b; --ok:#1f7a3f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:600px; margin:0 auto; padding:26px 20px 40px; }
+  h1 { font-size:26px; margin:0 0 2px; display:flex; align-items:center; gap:10px; }
+  h1 img { width:36px; height:36px; }
+  .lead { color:var(--muted); margin:0 0 20px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:14px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  label.f { display:block; font-size:13.5px; font-weight:600; margin:12px 0 4px; }
+  select, input[type=password], input[type=text], textarea { width:100%; font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); }
+  textarea { min-height:60px; resize:vertical; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:6px 0; cursor:pointer; }
+  .opt input { margin-top:4px; accent-color:var(--accent); }
+  .opt b { display:block; } .opt b small { font-weight:400; color:var(--muted); }
+  .opt span { color:var(--muted); font-size:13.5px; }
+  .small { color:var(--muted); font-size:13px; margin:6px 0 0; }
+  a { color:var(--accent); cursor:pointer; }
+  button { font:inherit; font-weight:600; border:0; border-radius:9px; padding:8px 14px; background:var(--ink); color:#fff; cursor:pointer; }
+  .row { display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap; }
+  .status { font-size:13.5px; } .good { color:var(--ok); } .bad { color:#b3261e; }
+  ol { margin:0; padding-left:20px; } li { margin:3px 0; }
+  kbd { background:#fff; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 6px; font-size:13px; }
+  #hotkey { cursor:pointer; text-align:center; font-weight:600; }
+  #hotkey.rec { border-color:var(--accent); background:#fff3ef; }
+  .update { display:flex; flex-direction:column; gap:4px; background:#ecf7ef; border:1px solid #b9e0c4; color:#174f2a; border-radius:14px; padding:14px 18px; margin-bottom:14px; }
+  .update[hidden] { display:none; }
+  .sizes { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+  .sizes label { border:1px solid var(--line); border-radius:10px; padding:7px 12px; cursor:pointer; display:flex; gap:7px; align-items:center; }
+  .sizes input { accent-color:var(--accent); }
+  .foot { color:var(--muted); font-size:13px; text-align:center; margin-top:16px; }
+  .saved { position:fixed; right:16px; bottom:16px; background:var(--ok); color:#fff; padding:5px 11px; border-radius:8px; font-size:13.5px; opacity:0; transition:opacity .2s; }
+  .saved.on { opacity:1; }
+</style>
+</head>
+<body>
+<main>
+  <h1><img src="../assets/icon.png" alt="">SayIt</h1>
+  <p class="lead">Speak, and your words are typed into any app, with the grammar fixed.</p>
+  <div class="update" id="updateBox" hidden>
+    <b>A new version of SayIt is out: <span id="newVer"></span></b>
+    <span>Download it and install it over this one. Your key and settings stay.</span>
+    <a id="newLink">Download the new version →</a>
+  </div>
+
+  <section>
+    <h2>How to use it</h2>
+    <ol>
+      <li>Click where you want to type, in any app: Word, WhatsApp, email, a form.</li>
+      <li>Press <kbd id="hk1">Alt+Shift+D</kbd> or click the round mic button floating on your screen.</li>
+      <li>Speak. Your words appear each time you pause.</li>
+      <li>Press the shortcut again or <b>Done</b>. SayIt types it where your cursor is. <kbd>Esc</kbd> cancels.</li>
+    </ol>
+    <p class="small">Drag the round button anywhere. Right-click it to hide it. SayIt also lives in your <span id="trayName">system tray</span>.</p>
+  </section>
+
+  <section>
+    <h2>Groq key <small style="font-weight:400;color:var(--muted)">(free, needed)</small></h2>
+    <input type="password" id="groqKey" placeholder="gsk_…" autocomplete="off">
+    <p class="small">Used to turn your voice into text (Whisper) and to fix the grammar. <a data-url="https://console.groq.com/keys">Get a free key →</a> Sign in with Google, click "Create API key", paste it here.</p>
+    <div class="row"><button id="testAi">Test</button><span class="status" id="aiStatus"></span></div>
+  </section>
+
+  <section>
+    <h2>What should happen to your words?</h2>
+    <label class="opt"><input type="radio" name="mode" value="exact"><div><b>Exact words</b><span>Types what Whisper heard.</span></div></label>
+    <label class="opt"><input type="radio" name="mode" value="grammar"><div><b>Fix grammar <small>(recommended)</small></b><span>Full stops, commas, capitals and grammar mistakes. Never rephrases.</span></div></label>
+    <label class="opt"><input type="radio" name="mode" value="rephrase"><div><b>Rephrase</b><span>Rewrites it to read more clearly, same meaning.</span></div></label>
+    <label class="opt"><input type="checkbox" id="fillers"><div><b>Remove "um", "uh" and stutters</b><span>"um so I I I think" becomes "so I think". Real words are never removed.</span></div></label>
+    <label class="f" for="tone">Rephrase style</label>
+    <select id="tone">
+      <option value="natural">Natural (keep my level of formality)</option>
+      <option value="formal">Formal (emails, applications, reports)</option>
+      <option value="friendly">Friendly (messages to colleagues and friends)</option>
+      <option value="concise">Short and clear</option>
+    </select>
+  </section>
+
+  <section>
+    <h2>Speech</h2>
+    <label class="f" for="lang">Language you speak</label>
+    <select id="lang">
+      <option value="en-GB">English</option>
+      <option value="sw-KE">Kiswahili</option>
+      <option value="fr-FR">Français</option>
+      <option value="es-ES">Español</option>
+      <option value="pt-PT">Português</option>
+      <option value="de-DE">Deutsch</option>
+    </select>
+    <label class="f" for="vocab">Names and words SayIt should know</label>
+    <textarea id="vocab" placeholder="Okidi, Patrovas, Oyam, Makerere, Lonyo, Chevening"></textarea>
+    <p class="small">Separate with commas. They'll be spelled exactly like this.</p>
+    <label class="f" for="hotkey">Shortcut to start / stop</label>
+    <input type="text" id="hotkey" readonly title="Click, then press the keys you want">
+    <p class="small" id="hkMsg">Click the box, then press the keys you want (e.g. Ctrl+Shift+Space).</p>
+    <label class="f">Size of the mic button</label>
+    <div class="sizes">
+      <label><input type="radio" name="bubbleSize" value="s"> Small</label>
+      <label><input type="radio" name="bubbleSize" value="m"> Medium</label>
+      <label><input type="radio" name="bubbleSize" value="l"> Large</label>
+    </div>
+    <label class="f">Size of the text box while you speak</label>
+    <div class="sizes">
+      <label><input type="radio" name="panelSize" value="m"> Medium</label>
+      <label><input type="radio" name="panelSize" value="l"> Large</label>
+      <label><input type="radio" name="panelSize" value="xl"> Extra large</label>
+    </div>
+    <p class="small">You can also use the A− / A+ buttons on the box while you speak.</p>
+    <label class="opt"><input type="checkbox" id="showBubble"><div><b>Show the floating mic button</b><span>Turn off if you only use the shortcut.</span></div></label>
+  </section>
+
+  <section>
+    <h2>Other AI for grammar <small style="font-weight:400;color:var(--muted)">(optional)</small></h2>
+    <label class="f" for="provider">Grammar provider</label>
+    <select id="provider"></select>
+    <div id="otherKeyBox">
+      <label class="f" for="otherKey">Key for this provider</label>
+      <input type="password" id="otherKey" autocomplete="off">
+    </div>
+    <div id="customBox"><label class="f" for="customUrl">Address (ends in /chat/completions)</label><input type="text" id="customUrl"></div>
+    <label class="f" for="model">Model <small style="font-weight:400;color:var(--muted)">(leave empty for the default)</small></label>
+    <input type="text" id="model">
+  </section>
+  <p class="foot">SayIt <span id="ver"></span> · <a id="checkUpd">Check for updates</a> · <a data-url="https://github.com/ambroseonapa/sayit">GitHub</a></p>
+</main>
+<div class="saved" id="saved">Saved ✓</div>
+<script src="shared.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>
