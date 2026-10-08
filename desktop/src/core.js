@@ -126,15 +126,27 @@ async function callAI(ai, system, text) {
   }
 }
 
+const NO_TEMPERATURE = new Set();
 async function callAIRaw(ai, system, text) {
+  try { return await callAIOnce(ai, system, text); }
+  catch (e) {
+    if (/temperature/i.test(e.message) && !NO_TEMPERATURE.has(ai.model)) { NO_TEMPERATURE.add(ai.model); return callAIOnce(ai, system, text); }
+    throw e;
+  }
+}
+async function callAIOnce(ai, system, text) {
   const user = "<dictation>\n" + text + "\n</dictation>";
-  const maxTokens = Math.min(4096, 200 + Math.ceil(text.length / 2));
+  const maxTokens = Math.min(8192, 300 + Math.ceil(text.length / 2));
+  // Long dictations take the AI longer: 15 s plus 1 s for every 150 characters (at most 2 minutes).
+  const ms = Math.min(120000, 15000 + Math.ceil(text.length / 150) * 1000);
+  // Newer models (for example claude-opus-5-5) refuse the "temperature" setting. Remember that and leave it out.
+  const useTemp = !NO_TEMPERATURE.has(ai.model);
   let r, out;
   if (ai.provider === "anthropic") {
     r = await fetch(ai.url, {
-      method: "POST", signal: withTimeout(15000),
+      method: "POST", signal: withTimeout(ms),
       headers: { "x-api-key": ai.key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: ai.model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: "user", content: user }] })
+      body: JSON.stringify({ model: ai.model, max_tokens: maxTokens, ...(useTemp ? { temperature: 0 } : {}), system, messages: [{ role: "user", content: user }] })
     });
     if (!r.ok) throw new Error(await errText(r));
     const data = await r.json();
@@ -143,13 +155,13 @@ async function callAIRaw(ai, system, text) {
     const body = { model: ai.model, messages: [{ role: "system", content: system }, { role: "user", content: user }] };
     const reasoning = /^(gpt-5|o\d)/.test(ai.model);
     if (ai.provider === "openai") body.max_completion_tokens = maxTokens; else body.max_tokens = maxTokens;
-    if (!reasoning) body.temperature = 0;
+    if (!reasoning && useTemp) body.temperature = 0;
     if (/gpt-oss|qwen3|deepseek-r1/i.test(ai.model)) {
       if (ai.provider === "groq") { body.reasoning_effort = "low"; body.include_reasoning = false; }
       body.max_tokens = maxTokens + 1500;
     }
     r = await fetch(ai.url, {
-      method: "POST", signal: withTimeout(15000),
+      method: "POST", signal: withTimeout(ms),
       headers: { authorization: "Bearer " + ai.key, "content-type": "application/json" },
       body: JSON.stringify(body)
     });

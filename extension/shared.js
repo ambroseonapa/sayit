@@ -213,6 +213,7 @@ function sayitPrompt(mode, opt) {
       "- Join broken and half-finished sentences into complete ones, and put words in an order that makes sense.\n" +
       "- Fix grammar, punctuation and capital letters, and add small words that are missing (a, the, to, of, is).\n" +
       "- Remove filler words, false starts and repeats. If the speaker corrects themselves, keep only the corrected version.\n" +
+      "- If it is longer than a few sentences, break it into paragraphs where the topic changes (blank line between them).\n" +
       "Keep:\n" +
       "- Exactly what the speaker meant, and every fact, name, number and point.\n" +
       "- The speaker's own words and phrases wherever they already work. Only change a word when the sentence doesn't make sense without changing it.\n" +
@@ -224,14 +225,15 @@ function sayitPrompt(mode, opt) {
       "Reply with the text only. No quotes, no tags, no comments.";
   } else if (mode === "rephrase") {
     p =
-      "You turn dictated speech into well-written text. The text inside <dictation> was spoken aloud, so it may ramble, repeat itself, use filler words, change direction mid-sentence or put ideas in an awkward order.\n" +
-      "Rewrite it so it reads smoothly as written English:\n" +
+      "You turn dictated speech into well-written text. The text inside <dictation> was spoken aloud, so it rambles, repeats itself, uses filler words, changes direction mid-sentence and puts ideas in an awkward order. English may not be the speaker's first language.\n" +
+      "Really rewrite it, the way a good editor would, so it reads clearly and flows:\n" +
+      "- Work out what the speaker is trying to say, then say it clearly. Rebuild sentences freely; you don't need to keep their sentence shapes.\n" +
+      "- Put the ideas in a sensible order and group related points together. Say each point once: merge repeated points and drop false starts and filler. If the speaker corrects themselves, keep only the corrected version.\n" +
+      "- If it is longer than a few sentences, split it into paragraphs (one main idea per paragraph, separated by a blank line).\n" +
       "- Fix all grammar, punctuation and capital letters.\n" +
-      "- Remove filler words, false starts and repetition. If the speaker corrects themselves (\"no, I mean…\", \"sorry, I meant…\"), keep only the corrected version.\n" +
-      "- Join or split sentences so each one says one thing clearly. Put related points together.\n" +
-      "- Use plain, everyday words, and keep a natural mix of short and long sentences.\n" +
-      "- Keep every fact, number, name and point the speaker made. Do not add facts, examples, opinions or a conclusion they did not say.\n" +
-      "- Keep the first-person voice and the speaker's intent (a question stays a question, a request stays a request).\n" +
+      "- Keep every fact, number, name, example and point the speaker made. Do not add facts, examples, opinions or a conclusion they did not say.\n" +
+      "- Keep it sounding like this person: first person, their level of formality, their own key words and phrases where they work. Use plain, everyday words, and a natural mix of short and long sentences.\n" +
+      "- Keep the speaker's intent (a question stays a question, a request stays a request).\n" +
       "- " + (SAYIT_TONES[opt.tone] || SAYIT_TONES.natural) + "\n" +
       SAYIT_COMMON_RULES +
       "Reply with the rewritten text only. No quotes, no tags, no comments, no title.";

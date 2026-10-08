@@ -7,11 +7,29 @@ function flash() { $("saved").classList.add("on"); clearTimeout(savedTimer); sav
 async function set(patch) { const r = await api.setSettings(patch); flash(); return r; }
 const pretty = (k) => (isMac ? k.replace(/Alt/g, "Option").replace(/CommandOrControl|Command/g, "Cmd").replace(/Control/g, "Ctrl") : k.replace(/Control/g, "Ctrl"));
 
+// Speech (voice → text) needs Groq, OpenAI or Gemini; Claude and others only fix the words.
+const SPEECH = { groq: "Groq", openai: "OpenAI", gemini: "Gemini" };
+function showSpeechInfo() {
+  const k = S.keys || {};
+  const have = Object.keys(SPEECH).filter((id) => k[id]);
+  const el = $("speechInfo");
+  if (have.length) {
+    el.innerHTML = "";
+    el.append("✓ Your voice is turned into text with your " + SPEECH[have[0]] + " key. " +
+      (S.provider in SPEECH ? "" : (SAYIT_PROVIDERS[S.provider] || {}).name + " fixes the words."));
+    el.className = "small good";
+  } else {
+    el.textContent = "⚠ To turn your voice into text, SayIt also needs a Groq (free), OpenAI or Gemini key. " +
+      (S.provider in SPEECH ? "Paste it above." : (SAYIT_PROVIDERS[S.provider] || {}).name + " can fix the words but can't listen. Choose Groq above, paste a free Groq key, then switch back. SayIt keeps both keys.");
+    el.className = "small bad";
+  }
+}
 function showProvider() {
   const p = SAYIT_PROVIDERS[S.provider] || SAYIT_PROVIDERS.groq;
   $("provider").value = S.provider;
-  $("otherKeyBox").style.display = S.provider === "groq" ? "none" : "";
-  $("otherKey").value = (S.keys || {})[S.provider] || "";
+  $("provName").textContent = p.name;
+  $("aiKey").value = (S.keys || {})[S.provider] || "";
+  showSpeechInfo();
   $("customBox").style.display = S.provider === "custom" ? "" : "none";
   $("customUrl").value = S.customUrl || "";
   $("model").value = (S.models || {})[S.provider] || "";
@@ -21,9 +39,8 @@ function showProvider() {
 async function load() {
   S = await api.getFullSettings();
   for (const [id, p] of Object.entries(SAYIT_PROVIDERS)) {
-    const o = document.createElement("option"); o.value = id; o.textContent = p.name + (id === "groq" ? " (uses the key above)" : ""); $("provider").appendChild(o);
+    const o = document.createElement("option"); o.value = id; o.textContent = p.name + (id === "groq" ? " (free, fastest)" : id === "gemini" ? " (free)" : ""); $("provider").appendChild(o);
   }
-  $("groqKey").value = (S.keys || {}).groq || "";
   document.querySelector(`input[name=mode][value=${S.mode}]`).checked = true;
   $("lang").value = ["en-GB", "sw-KE", "fr-FR", "es-ES", "pt-PT", "de-DE"].includes(S.lang) ? S.lang : "en-GB";
   $("vocab").value = S.vocab || "";
@@ -45,9 +62,6 @@ async function load() {
   showProvider();
 }
 
-function saveGroqKey() { const v = $("groqKey").value.trim(); if ((S.keys || {}).groq === v) return; S.keys = { ...S.keys, groq: v }; set({ keys: { groq: v } }); }
-$("groqKey").addEventListener("input", saveGroqKey);
-$("groqKey").addEventListener("change", saveGroqKey);
 document.querySelectorAll("input[name=mode]").forEach((r) => r.addEventListener("change", () => set({ mode: r.value })));
 $("lang").addEventListener("change", () => set({ lang: $("lang").value }));
 $("vocab").addEventListener("change", () => set({ vocab: $("vocab").value.trim() }));
@@ -82,21 +96,26 @@ api.on("update-progress", ({ f, msg }) => { $("updFill").style.width = Math.roun
 $("checkUpd").addEventListener("click", async () => {
   $("checkUpd").textContent = "Checking…";
   const r = await api.checkUpdate();
-  $("checkUpd").textContent = r.error ? r.error : showUpdate(r.update) ? "New version found: press Update now at the top ↑"
-    : "You have the latest version (v" + r.current + ") ✓ When a new one comes out, an Update now button appears at the top of this page.";
-  if (r.update) window.scrollTo({ top: 0, behavior: "smooth" });
+  const found = !r.error && showUpdate(r.update);
+  $("checkUpd").textContent = r.error ? r.error : found ? "New version found ↓"
+    : "You have the latest version (v" + r.current + ") ✓";
+  if (found) { // show the update right here, next to the button you pressed
+    const box = $("updateBox"), foot = document.querySelector(".foot");
+    foot.parentNode.insertBefore(box, foot);
+    box.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 });
-$("provider").addEventListener("change", () => { if (S.provider !== "groq") saveOtherKey(); S.provider = $("provider").value; set({ provider: S.provider }); showProvider(); });
-function saveOtherKey() { const v = $("otherKey").value.trim(); if ((S.keys || {})[S.provider] === v) return; S.keys = { ...S.keys, [S.provider]: v }; set({ keys: { [S.provider]: v } }); }
-$("otherKey").addEventListener("input", saveOtherKey);
-$("otherKey").addEventListener("change", saveOtherKey);
+$("provider").addEventListener("change", () => { saveKey(); S.provider = $("provider").value; set({ provider: S.provider }); showProvider(); $("aiStatus").textContent = ""; });
+function saveKey() { const v = $("aiKey").value.trim(); if (((S.keys || {})[S.provider] || "") === v) return; S.keys = { ...S.keys, [S.provider]: v }; set({ keys: { [S.provider]: v } }); showSpeechInfo(); }
+$("aiKey").addEventListener("input", saveKey);
+$("aiKey").addEventListener("change", saveKey);
 $("customUrl").addEventListener("change", () => set({ customUrl: $("customUrl").value.trim() }));
 $("model").addEventListener("change", () => set({ models: { [S.provider]: $("model").value.trim() } }));
 document.querySelectorAll("a[data-url]").forEach((a) => a.addEventListener("click", () => api.openUrl(a.dataset.url)));
 
 $("testAi").addEventListener("click", async () => {
   const st = $("aiStatus");
-  if (!$("groqKey").value.trim() && !(S.keys || {})[S.provider]) { st.textContent = "Paste your key first."; st.className = "status bad"; return; }
+  if (!(S.keys || {})[S.provider]) { st.textContent = "Paste your key first."; st.className = "status bad"; return; }
   st.textContent = "Testing…"; st.className = "status";
   const r = await api.testAI();
   if (r.error) { st.textContent = "✗ " + r.error; st.className = "status bad"; return; }

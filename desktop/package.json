@@ -1,7 +1,7 @@
 {
   "name": "sayit-desktop",
   "productName": "SayIt",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Speak and your words are typed into any app, with the grammar fixed.",
   "main": "src/main.js",
   "author": "ambroseonapa",

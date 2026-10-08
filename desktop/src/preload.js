@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("sayit", {
   testAI: () => ipcRenderer.invoke("test-ai"),
   buttonClick: () => ipcRenderer.send("button-click"),
   panelState: (s) => ipcRenderer.send("panel-state", s),
+  panelText: (t) => ipcRenderer.send("panel-text", t),
+  pong: () => ipcRenderer.send("pong"),
   panelMoveStart: () => ipcRenderer.send("panel-move-start"),
   panelResizeStart: () => ipcRenderer.send("panel-resize-start"),
   panelGestureEnd: () => ipcRenderer.send("panel-gesture-end"),

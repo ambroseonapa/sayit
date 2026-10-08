@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.5
+**Desktop app**
+- Fixed: **the box could freeze after several minutes of talking** (Done and Copy stopped responding). Windows sometimes treated the box, which never takes focus, as hidden and stopped drawing it. SayIt now keeps it drawn and running. As a safety net, if the box ever stops responding, SayIt copies everything you said so far, tells you to press Ctrl+V, and opens a fresh box.
+- **One place for your AI key**, like the Chrome extension: choose the provider and paste its key; each provider's key is saved. A line underneath tells you whether SayIt can listen (that needs a Groq, OpenAI or Gemini key) and who fixes your words.
+- **Check for updates** now shows the update right there, next to the button.
+- Every minute while you talk, SayIt writes a short note to its log (tray menu → Open log), to help find problems.
+
+**Both**
+- Fixed: Claude's newest models (for example `claude-opus-5-5`) gave "temperature is deprecated". SayIt now leaves that setting out for those models.
+- **Rephrase really rewrites** now: ideas in a sensible order, each point said once, paragraphs for longer talk, while keeping every fact and your own key words. Polish also adds paragraphs on longer talk.
+- Long talks: SayIt waits longer for the AI (up to 2 minutes), so a long Rephrase or Polish no longer gives up and pastes your raw words.
+- Fewer AI requests while you talk (it used to resend all the text at every pause), so you hit "AI limit reached" much less often, especially with Claude.
+
 ## 0.8.4
 **Desktop app**
 - Clearer update message: "Check for updates" now says which version you have, and that an **Update now** button appears at the top of settings when a new version is out. If there is one, the page scrolls up to it.

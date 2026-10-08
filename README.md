@@ -62,7 +62,7 @@ Also works in Microsoft Edge (`edge://extensions`) and Brave.
 
 1. Download **[SayIt-Setup-Windows.exe][win]** and double-click it.
 2. Windows may say **"Windows protected your PC"**, because SayIt isn't signed with a paid certificate yet. Click **More info → Run anyway**. You only do this once.
-3. SayIt installs and opens its settings. Paste your Groq key and press **Test**.
+3. SayIt installs and opens its settings. Under **AI provider and key**, keep Groq, paste your Groq key and press **Test**.
 4. A round mic button now floats on your screen, and SayIt sits in the tray near the clock. Right-click the tray icon → **Start SayIt when computer starts** to keep it always on.
 
 Prefer not to install? Use the **[portable zip][winzip]**: unzip it anywhere and run `SayIt.exe`.
@@ -113,7 +113,7 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 - **Exact words**: types exactly what you said.
 - **Fix grammar** (recommended): full stops, commas, capitals, question marks and grammar mistakes (*they was → they were*). It never swaps your words for "better" ones or changes your meaning. If the AI ever changes too much, SayIt keeps your original.
 - **Polish (keeps my voice)**: for when you speak in pieces, or English is your second language. It joins broken or half-finished sentences so they make sense, fixes the grammar and adds missing small words (*the*, *a*, *to*, *is*). It keeps your meaning and your own words, and does not make you sound like someone else.
-- **Rephrase**: rewrites it to read smoothly: removes rambling and repetition, keeps every fact. Pick a style: **Natural**, **Formal** (applications, reports), **Friendly** or **Short and clear**.
+- **Rephrase**: really rewrites it, like a good editor: puts your ideas in a sensible order, says each point once, splits long talk into paragraphs, and keeps every fact and your own key words. Pick a style: **Natural**, **Formal** (applications, reports), **Friendly** or **Short and clear**.
 - **Write like me** (optional): paste one or two paragraphs you wrote yourself. Polish and Rephrase follow your style from them, so the result still sounds like you.
 - **Show the changes before inserting** (off by default): see what was changed (crossed out in red, new words in green) and choose **Insert** or **Use my words**. It's off by default because it adds a step.
 - In every mode SayIt never adds long dashes (—), and never adds business words like *leverage*, *foster* or *synergy* unless you said them yourself.
@@ -131,7 +131,7 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 - Chrome: the listening box comes in Medium, Large and Extra large; use **A− / A+** on the box any time. **Drag its top row** to move it and **drag its bottom-right corner** to resize it; SayIt remembers both. To put it back at the bottom: SayIt settings → Look of the listening box → **Put the box back at the bottom**.
 - Desktop: **drag the top of the box** to move it and **drag its bottom-right corner** to resize it; SayIt remembers the size. Choose where it opens: **where you're typing** (default; on Windows that's where you last clicked if the app doesn't show its text cursor), **where you last moved it**, or **next to the mic button**. Moving the box never moves the mic button. **A− / A+** changes the text size. Scroll up to read earlier words while you talk; the box stays there until you scroll back down. The **mic button** comes in Small, Medium and Large.
 
-**Other AI providers**: Groq is the default because it is fast and free, but you can use Google Gemini (free key from AI Studio), OpenAI, Anthropic Claude, OpenRouter, or any OpenAI-compatible service for grammar. Each provider's key is saved separately, so you can switch back and forth without pasting keys again.
+**AI provider and key** (one place in both apps): choose the provider, paste its key. Groq is the default because it is fast and free, but you can use Google Gemini (free key from AI Studio), OpenAI, Anthropic Claude, OpenRouter, or any OpenAI-compatible service. Each provider's key is saved separately, so you can switch back and forth without pasting keys again. To use Claude: save a free Groq key first (for listening), then switch the provider to Claude and paste your Claude key. Claude then fixes or rewrites your words, and Groq still listens.
 
 **Finish by itself**: optionally stop after 2, 3 or 5 seconds of silence, so you don't need to press Done.
 

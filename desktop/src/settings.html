@@ -71,10 +71,17 @@
   </section>
 
   <section>
-    <h2>Groq key <small style="font-weight:400;color:var(--muted)">(free, recommended)</small></h2>
-    <input type="password" id="groqKey" placeholder="gsk_…" autocomplete="off">
-    <p class="small"><b>For speech you need one of:</b> a Groq key (free and fastest), an OpenAI key, or a Google Gemini key (add those under "Other AI" below). Claude can fix grammar but can't listen to audio, so a Claude key alone isn't enough. <a data-url="https://console.groq.com/keys">Get a free key →</a> Sign in with Google, click "Create API key", paste it here.</p>
+    <h2>AI provider and key</h2>
+    <p class="small" style="margin-top:0">Choose your AI and paste its key. Each provider's key is saved separately, so you can switch back and forth without pasting again. <b>Groq is free and the fastest</b> (<a data-url="https://console.groq.com/keys">get a free key →</a> sign in with Google, click "Create API key").</p>
+    <label class="f" for="provider">Provider</label>
+    <select id="provider"></select>
+    <label class="f" for="aiKey">Key for <span id="provName">this provider</span></label>
+    <input type="password" id="aiKey" autocomplete="off" placeholder="paste your key here">
+    <div id="customBox"><label class="f" for="customUrl">Address (ends in /chat/completions)</label><input type="text" id="customUrl"></div>
+    <label class="f" for="model">Model <small style="font-weight:400;color:var(--muted)">(leave empty for the default)</small></label>
+    <input type="text" id="model">
     <div class="row"><button id="testAi">Test</button><span class="status" id="aiStatus"></span></div>
+    <p class="small" id="speechInfo"></p>
   </section>
 
   <section>
@@ -82,7 +89,7 @@
     <label class="opt"><input type="radio" name="mode" value="exact"><div><b>Exact words</b><span>Types what Whisper heard.</span></div></label>
     <label class="opt"><input type="radio" name="mode" value="grammar"><div><b>Fix grammar <small>(recommended)</small></b><span>Full stops, commas, capitals and grammar mistakes. Never rephrases.</span></div></label>
     <label class="opt"><input type="radio" name="mode" value="polish"><div><b>Polish <small>(keeps my voice)</small></b><span>Puts broken or half-finished sentences together so they make sense, fixes grammar and adds missing small words. Keeps your meaning and your own words.</span></div></label>
-    <label class="opt"><input type="radio" name="mode" value="rephrase"><div><b>Rephrase</b><span>Rewrites it to read more clearly, same meaning.</span></div></label>
+    <label class="opt"><input type="radio" name="mode" value="rephrase"><div><b>Rephrase</b><span>Really rewrites it: ideas in a sensible order, each point said once, paragraphs for longer talk. Keeps every fact and sounds like you.</span></div></label>
     <label class="opt"><input type="checkbox" id="fillers"><div><b>Remove "um", "uh" and stutters</b><span>"um so I I I think" becomes "so I think". Real words are never removed.</span></div></label>
     <label class="f" for="samples">Write like me <small style="font-weight:400;color:var(--muted)">(optional, for Polish and Rephrase)</small></label>
     <textarea id="samples" style="min-height:90px" placeholder="Paste one or two paragraphs you wrote yourself (an email, a message, part of an essay). SayIt follows your style from them."></textarea>
@@ -147,19 +154,6 @@
     </div>
   </section>
 
-  <section>
-    <h2>Other AI for grammar <small style="font-weight:400;color:var(--muted)">(optional)</small></h2>
-    <p class="small" style="margin-top:0">Choose who fixes the grammar, and paste that provider's key. Each provider's key is kept separately, so you can switch back and forth. Groq is usually the fastest (about 0.5 s); Claude is about 0.8 s. A Gemini or OpenAI key here can also be used for speech if you don't have a Groq key.</p>
-    <label class="f" for="provider">Grammar provider</label>
-    <select id="provider"></select>
-    <div id="otherKeyBox">
-      <label class="f" for="otherKey">Key for this provider</label>
-      <input type="password" id="otherKey" autocomplete="off">
-    </div>
-    <div id="customBox"><label class="f" for="customUrl">Address (ends in /chat/completions)</label><input type="text" id="customUrl"></div>
-    <label class="f" for="model">Model <small style="font-weight:400;color:var(--muted)">(leave empty for the default)</small></label>
-    <input type="text" id="model">
-  </section>
   <p class="foot">SayIt <span id="ver"></span> · <a id="checkUpd">Check for updates</a> · <a data-url="https://github.com/ambroseonapa/sayit">GitHub</a></p>
 </main>
 <div class="saved" id="saved">Saved ✓</div>

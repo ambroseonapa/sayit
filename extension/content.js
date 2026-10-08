@@ -430,9 +430,18 @@
       if (useGroq && gsegs.some((s) => s.status === "pending")) return;
       const t = useGroq ? prepare(gTexts(), { fromWhisper: true }) : prepare(segments);
       if (!t || (spec && spec.text === t)) return;
-      spec = { text: t, promise: polishReq(t) };
+      // One at a time, and not too often on long talks (each one sends the whole text to the AI).
+      if (spec && !spec.settled) { spec.again = true; return; }
+      const gap = t.length > 1500 ? 15000 : 1000;
+      if (Date.now() - lastSpecAt < gap) { specTimer = setTimeout(scheduleSpec, gap - (Date.now() - lastSpecAt)); return; }
+      lastSpecAt = Date.now();
+      const mine = { text: t };
+      mine.promise = polishReq(t);
+      mine.promise.then(() => {}, () => {}).then(() => { mine.settled = true; if (mine.again && spec === mine) scheduleSpec(); });
+      spec = mine;
     }, settings.engine === "ai" || settings.mode === "rephrase" ? 300 : 900);
   }
+  let lastSpecAt = 0;
   function timeout(p, ms, what) {
     return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what || "took too long")), ms))]);
   }
@@ -699,7 +708,7 @@
     clearTimeout(watchdog);
     watchdog = setTimeout(() => {
       if (state === "working") { reset(); toast("That took too long, so SayIt stopped. Please try again.", [], { error: true }); }
-    }, 25000);
+    }, 160000); // long talks can take the AI up to 2 minutes
 
     try {
       renderBar();
@@ -729,7 +738,8 @@
         setStatus(mode === "rephrase" ? "Rephrasing…" : mode === "polish" ? "Polishing…" : "Fixing grammar…");
         try {
           const p = spec && spec.text === raw ? spec.promise : polishReq(raw);
-          res = await timeout(p, mode === "rephrase" || mode === "polish" ? 20000 : 8000);
+          // long talks take the AI longer (up to 2 minutes)
+          res = await timeout(p, Math.min(125000, (mode === "rephrase" || mode === "polish" ? 20000 : 8000) + Math.ceil(raw.length / 150) * 1000));
         } catch (err) {
           res = { text: raw, changes: 0, note: "Grammar check failed (" + err.message + "). Inserted your words." };
         }

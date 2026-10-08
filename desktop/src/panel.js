@@ -17,6 +17,7 @@ api.getSettings().then((s) => { settings = s; paintStatic(); });
 api.on("settings", (s) => { settings = s; paintStatic(); });
 api.on("toggle", () => toggle());
 api.on("cancel", () => cancel());
+api.on("ping", () => api.pong()); // "I'm still alive" (see main.js)
 
 function paintStatic() {
   document.body.classList.remove("dark", "light", "ts-s", "ts-m", "ts-l", "ts-xl");
@@ -106,8 +107,13 @@ function paintText() {
   if (pending) { const w = document.createElement("span"); w.className = "wait"; w.textContent = (done ? " " : "") + "…"; t.appendChild(w); }
   if (!done && !pending) { const h = document.createElement("span"); h.className = "hint"; h.textContent = "Start speaking. Your words appear here each time you pause."; t.appendChild(h); }
   t.scrollTop = atBottom ? t.scrollHeight : keep;
+  api.panelText(done); // kept safe in the app, in case the box ever stops responding
 }
+let lastMeter = 0;
 function paintMeter(level) {
+  const now = Date.now();
+  if (now - lastMeter < 60) return; // ~16 times a second is plenty
+  lastMeter = now;
   const bars = $("meter").children;
   for (let i = 0; i < bars.length; i++) {
     const v = Math.max(3, Math.min(16, level * 240 * (0.6 + 0.4 * Math.sin(Date.now() / 90 + i * 1.7))));
@@ -192,6 +198,9 @@ function stopMic() {
 
 // ---------- grammar while you speak ----------
 const fullText = () => segs.filter((x) => x.status === "done" && x.text).map((x) => x.text).join(" ").trim();
+// Only one fix at a time, and not too often on long talks: every pause used to send the
+// whole text again, which used up AI limits ("AI limit reached") on long recordings.
+let lastSpecAt = 0;
 function scheduleSpec() {
   if (settings.mode === "exact" || state !== "listening") return;
   clearTimeout(specTimer);
@@ -199,8 +208,14 @@ function scheduleSpec() {
     if (segs.some((x) => x.status === "pending")) return;
     const t = fullText();
     if (!t || (spec && spec.text === t)) return;
-    spec = { text: t, p: api.polish(t, settings.mode) };
-  }, 250);
+    if (spec && !spec.settled) { spec.again = true; return; }         // wait for the one in progress
+    const gap = t.length > 1500 ? 15000 : 1500;
+    if (Date.now() - lastSpecAt < gap) { specTimer = setTimeout(scheduleSpec, gap - (Date.now() - lastSpecAt)); return; }
+    lastSpecAt = Date.now();
+    const mine = { text: t };
+    mine.p = api.polish(t, settings.mode).finally(() => { mine.settled = true; if (mine.again && spec === mine) scheduleSpec(); });
+    spec = mine;
+  }, 400);
 }
 
 // ---------- flow ----------
@@ -306,7 +321,9 @@ async function finish() {
     $("status").textContent = settings.mode === "rephrase" ? "Rephrasing…" : settings.mode === "polish" ? "Polishing…" : "Fixing grammar…";
     const slow = settings.mode === "rephrase" || settings.mode === "polish";
     const said = text;
-    const r = await withTimeout(spec && spec.text === text ? spec.p : api.polish(text, settings.mode), slow ? 20000 : 8000);
+    // long talks take the AI longer, so wait longer for them (up to 2 minutes)
+    const wait = Math.min(125000, (slow ? 20000 : 8000) + Math.ceil(text.length / 150) * 1000);
+    const r = await withTimeout(spec && spec.text === text ? spec.p : api.polish(text, settings.mode), wait);
     if (r && !r.error && r.text) text = r.text;
     else if (r && r.error) note = "grammar fix skipped (" + r.error + ")";
     if (r && r.note) note = r.note;

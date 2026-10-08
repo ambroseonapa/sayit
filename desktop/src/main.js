@@ -18,6 +18,13 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 // The shortcut doesn't count as a "click", so let audio start without one.
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+// The box never takes focus (so your cursor stays in your app). Chromium can then decide the
+// box is "covered", stop drawing it and slow down its timers, which looks like a frozen box
+// after a few minutes of talking. Turn that off: SayIt's windows are tiny, so it costs nothing.
+app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion,IntensiveWakeUpThrottling");
+app.commandLine.appendSwitch("disable-background-timer-throttling");
+app.commandLine.appendSwitch("disable-renderer-backgrounding");
+app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
 
 // ---------- settings ----------
 const DEFAULTS = {
@@ -117,6 +124,8 @@ function createPanel() {
     backgroundColor: themeResolved() === "dark" ? "#1c1f26" : "#ffffff"
   });
   panel.loadFile(path.join(__dirname, "panel.html"));
+  panel.webContents.on("render-process-gone", (_e, d) => recoverPanel("crashed (" + (d && d.reason) + ")"));
+  panel.on("unresponsive", () => { if (panelState === "listening" || panelState === "working") recoverPanel("stopped responding"); });
   // Resizing from the window's own edges: remember that size too.
   panel.on("resized", () => {
     if (gesture || !panel.isVisible()) return;
@@ -280,9 +289,57 @@ ipcMain.handle("type", async (_e, text) => {
   }
 });
 // the panel tells us what it's doing, so the button and Esc key follow along
+// ---------- keep an eye on the box while you talk ----------
+// If the box ever stops responding (or its page crashes), SayIt saves your words to the
+// clipboard, tells you, and makes a fresh box. A note goes to the log every minute.
+let panelText = "", lastPong = 0, healthTimer = null, healthTicks = 0, listenStart = 0;
+ipcMain.on("panel-text", (_e, t) => { panelText = String(t || ""); });
+ipcMain.on("pong", () => { lastPong = Date.now(); });
+function startHealth() {
+  if (healthTimer) return;
+  lastPong = Date.now(); healthTicks = 0; listenStart = Date.now();
+  healthTimer = setInterval(() => {
+    if (!panel || panel.isDestroyed()) return;
+    panel.webContents.send("ping");
+    try { panel.webContents.invalidate(); } catch {} // make sure the box is redrawn
+    healthTicks++;
+    if (healthTicks % 20 === 0) logHealth();
+    if (Date.now() - lastPong > 12000) recoverPanel("stopped responding");
+  }, 3000);
+}
+function stopHealth() { clearInterval(healthTimer); healthTimer = null; }
+function logHealth() {
+  try {
+    const pid = panel.webContents.getOSProcessId();
+    const m = app.getAppMetrics().find((x) => x.pid === pid);
+    debugLog("recording " + Math.round((Date.now() - listenStart) / 1000) + "s, words " + panelText.split(/\s+/).filter(Boolean).length +
+      (m ? ", box memory " + Math.round(m.memory.workingSetSize / 1024) + " MB, cpu " + Math.round(m.cpu.percentCPUUsage) + "%" : ""));
+  } catch {}
+}
+let recovering = false;
+function recoverPanel(why) {
+  if (recovering) return;
+  recovering = true;
+  stopHealth();
+  debugLog("box " + why + " after " + Math.round((Date.now() - listenStart) / 1000) + "s; saving " + panelText.length + " characters to the clipboard");
+  const saved = panelText.trim();
+  if (saved) require("electron").clipboard.writeText(saved);
+  try { panel.destroy(); } catch {}
+  panel = null; panelState = "idle"; setEscape(false);
+  if (button && !button.isDestroyed()) button.webContents.send("recording", false);
+  createPanel();
+  if (Notification.isSupported()) new Notification({
+    title: "SayIt had a problem with the box",
+    body: saved ? "Your words are safe: they're copied. Click where you want them and press " + (isMac ? "⌘V" : "Ctrl+V") + "." : "Please try again."
+  }).show();
+  setTimeout(() => { recovering = false; }, 2000);
+}
+
 ipcMain.on("panel-state", (_e, s) => {
   panelState = s;
   const active = s === "listening" || s === "working";
+  if (active) startHealth(); else stopHealth();
+  if (s === "idle") panelText = "";
   setEscape(active);
   if (button && !button.isDestroyed()) button.webContents.send("recording", s === "listening");
   if (s === "idle" && panel) panel.hide();
@@ -499,13 +556,24 @@ function runTest() {
     await panel.webContents.executeJavaScript("document.getElementById('copy').click()");
     setTimeout(async () => testLog({ event: "copy", clipboard: require("electron").clipboard.readText(), label: await panel.webContents.executeJavaScript("document.getElementById('copy').textContent") }), 300);
   }, 9000);
-  setTimeout(() => { testLog({ event: "finish" }); toggle("hotkey"); }, 10500);
+  if (process.env.SAYIT_SHOT_KEYS) setTimeout(async () => { if (!settingsWin) return;
+    await settingsWin.webContents.executeJavaScript("document.getElementById('provider').scrollIntoView(); window.scrollBy(0,-90)");
+    await new Promise((r) => setTimeout(r, 300)); settingsWin.webContents.capturePage().then((img) => fs.writeFileSync(TEST + ".keys.png", img.toPNG()));
+    await settingsWin.webContents.executeJavaScript("const p=document.getElementById('provider'); p.value='anthropic'; p.dispatchEvent(new Event('change'))");
+    await new Promise((r) => setTimeout(r, 400)); settingsWin.webContents.capturePage().then((img) => fs.writeFileSync(TEST + ".keys2.png", img.toPNG()));
+    testLog({ event: "keys", groq: !!(settings.keys || {}).groq, provider: settings.provider });
+  }, 4500);
+  if (process.env.SAYIT_HANG) setTimeout(() => { testLog({ event: "hang" }); panel.webContents.executeJavaScript("setTimeout(() => { for (;;) {} }, 10)"); }, 8500);
+  if (process.env.SAYIT_HANG) setTimeout(() => testLog({ event: "after-hang", clipboard: require("electron").clipboard.readText(), newPanel: !!panel && !panel.isDestroyed(), state: panelState }), 26000);
+  const LONG = Number(process.env.SAYIT_LONG || 0) * 1000; // long-recording test
+  if (LONG) setInterval(() => { logHealth(); testLog({ event: "health", t: Math.round((Date.now() - listenStart) / 1000), words: panelText.split(/\s+/).filter(Boolean).length, metrics: app.getAppMetrics().map((m) => m.type + ":" + Math.round(m.memory.workingSetSize / 1024) + "MB/" + Math.round(m.cpu.percentCPUUsage) + "%").join(" ") }); }, 30000);
+  setTimeout(() => { testLog({ event: "finish" }); toggle("hotkey"); }, 10500 + LONG);
   if (process.env.SAYIT_SHOWCHANGES) setTimeout(async () => {
     await shot(panel, "review");
     testLog({ event: "review", html: await panel.webContents.executeJavaScript("document.getElementById('text').innerHTML + ' | done=' + document.getElementById('done').textContent + ' mine.hidden=' + document.getElementById('mine').hidden") });
     await panel.webContents.executeJavaScript("document.getElementById('done').click()");
   }, 12000);
-  setTimeout(() => testLog({ event: "after", panelVisible: panel.isVisible(), state: panelState }), 13500);
+  setTimeout(() => testLog({ event: "after", panelVisible: panel.isVisible(), state: panelState }), 13500 + LONG + (LONG ? 15000 : 0));
   setTimeout(async () => { if (settingsWin) { await settingsWin.webContents.executeJavaScript("window.scrollTo(0, 99999)"); setTimeout(() => shot(settingsWin, "settings"), 300); } }, 3000);
-  setTimeout(() => app.quit(), 14500);
+  setTimeout(() => app.quit(), 14500 + LONG + (LONG ? 15000 : 0));
 }
