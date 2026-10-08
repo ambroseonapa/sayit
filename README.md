@@ -181,9 +181,9 @@ npm start
 ```
 
 **Release a new version**
-1. Change the version in **both** `extension/manifest.json` and `desktop/package.json` (for example `0.6.0`).
+1. Change the version in **both** `extension/manifest.json` and `desktop/package.json` (for example `0.6.0`), and add a `## 0.6.0` section to the top of `CHANGELOG.md`.
 2. Commit and push.
-3. On GitHub: **Releases → Draft a new release**, create the tag `v0.6.0`, and **Publish**.
-4. GitHub Actions builds the Chrome zip, the Windows installer and both Mac apps (about 10 minutes) and attaches them to the release. Everyone's SayIt will then see the update.
+3. Create the tag `v0.6.0`: on GitHub use **Releases → Draft a new release → choose a tag → v0.6.0 → Publish**, or in a terminal run `git tag v0.6.0 && git push origin v0.6.0`.
+4. GitHub Actions builds the Chrome zip, the Windows installer and both Mac apps (about 10–15 minutes), creates the release if needed, and attaches the files. Everyone's SayIt will then see the update.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
