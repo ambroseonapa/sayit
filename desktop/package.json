@@ -1,11 +1,11 @@
 {
   "name": "sayit-desktop",
   "productName": "SayIt",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Speak and your words are typed into any app, with the grammar fixed.",
   "main": "src/main.js",
   "author": "ambroseonapa",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "sync-shared": "node scripts/sync-shared.js",
     "start": "npm run sync-shared && electron .",

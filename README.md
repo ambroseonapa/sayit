@@ -23,6 +23,8 @@ Some boxes need a lot of typing: application forms, emails, comments, reports. S
 
 You can use both. They share the same settings ideas and the same free key.
 
+**Not sure which one?** Start with the **desktop app**. You install it like any other program (no developer mode, no unzipping into folders), it works in every app, and it updates itself with one click (**Update now** in its settings). The Chrome extension isn't on the Chrome Web Store yet, so installing and updating it takes a few more steps.
+
 [ext]: https://github.com/ambroseonapa/sayit/releases/latest/download/SayIt-Chrome-extension.zip
 [win]: https://github.com/ambroseonapa/sayit/releases/latest/download/SayIt-Setup-Windows.exe
 [winzip]: https://github.com/ambroseonapa/sayit/releases/latest/download/SayIt-Windows-portable.zip
@@ -126,7 +128,7 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 
 **Appearance**
 - **Theme**: Light, Dark, or the same as your computer. Applies to the listening box in both apps (and the desktop mic button).
-- Chrome: the listening box comes in Medium, Large and Extra large; use **A− / A+** on the box any time.
+- Chrome: the listening box comes in Medium, Large and Extra large; use **A− / A+** on the box any time. **Drag its top row** to move it and **drag its bottom-right corner** to resize it; SayIt remembers both. To put it back at the bottom: SayIt settings → Look of the listening box → **Put the box back at the bottom**.
 - Desktop: **drag the top of the box** to move it and **drag its bottom-right corner** to resize it; SayIt remembers the size. Choose where it opens: **where you're typing** (default; on Windows that's where you last clicked if the app doesn't show its text cursor), **where you last moved it**, or **next to the mic button**. Moving the box never moves the mic button. **A− / A+** changes the text size. Scroll up to read earlier words while you talk; the box stays there until you scroll back down. The **mic button** comes in Small, Medium and Large.
 
 **Other AI providers**: Groq is the default because it is fast and free, but you can use Google Gemini (free key from AI Studio), OpenAI, Anthropic Claude, OpenRouter, or any OpenAI-compatible service for grammar. Each provider's key is saved separately, so you can switch back and forth without pasting keys again.
@@ -139,11 +141,14 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 
 SayIt checks GitHub once a day for a new version. When there is one:
 - **Chrome**: the toolbar icon shows a green **new** badge, and the settings page shows a download link.
-- **Desktop**: you get a notification, and the tray menu shows **Update available**.
+- **Desktop**: you get a notification, the tray menu shows **Update to vX now**, and settings shows an **Update now** button.
 
 **To update the Chrome extension:** download the new `SayIt-Chrome-extension.zip`, unzip it **over the files in your existing SayIt folder** (replace them), then go to `chrome://extensions` and click the **reload ↻** arrow on SayIt. Your key and settings stay. Reload any open tabs you want to use it in.
 
-**To update the desktop app:** download and run the new installer (Windows) or replace SayIt.app in Applications (Mac, then run the `xattr` line again). Your key and settings stay.
+**To update the desktop app:** open SayIt settings (or the tray / menu-bar menu) and press **Update now**. SayIt downloads the new version, installs it and opens again by itself, in about a minute. Your keys and settings stay.
+- This works from version 0.8.3 on. If you have an older version, download and install 0.8.3 once by hand (installer on Windows; on Mac replace SayIt.app in Applications and run the `xattr` line again).
+- The Windows **portable zip** can't replace itself: Update now opens the download page instead.
+- Mac: after an update, macOS may ask again for microphone or Accessibility permission, because SayIt isn't signed by Apple.
 
 You can also check by hand: Chrome settings page → **Check for updates** (bottom), or desktop tray menu → **Check for updates**.
 
@@ -209,3 +214,7 @@ npm start
 That's all. GitHub Actions notices the new version, builds the Chrome zip, the Windows installer and both Mac apps (about 10–15 minutes), and publishes the release with the files attached. Everyone's SayIt then shows the update. Pushes that don't change the version don't build anything. You can follow the build in the **Actions** tab.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
+## License
+
+SayIt is free and open source under the [MIT License](LICENSE). You can use it, change it and share it; just keep the copyright notice.

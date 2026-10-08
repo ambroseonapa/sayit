@@ -25,5 +25,6 @@ contextBridge.exposeInMainWorld("sayit", {
   openUrl: (u) => ipcRenderer.send("open-url", u),
   checkUpdate: () => ipcRenderer.invoke("update:check"),
   getUpdate: () => ipcRenderer.invoke("update:get"),
+  installUpdate: () => ipcRenderer.invoke("update:install"),
   on: (ch, fn) => ipcRenderer.on(ch, (_e, ...a) => fn(...a))
 });

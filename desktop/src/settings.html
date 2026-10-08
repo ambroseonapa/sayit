@@ -33,6 +33,12 @@
   #hotkey.rec { border-color:var(--accent); background:#fff3ef; }
   .update { display:flex; flex-direction:column; gap:4px; background:#ecf7ef; border:1px solid #b9e0c4; color:#174f2a; border-radius:14px; padding:14px 18px; margin-bottom:14px; }
   .update[hidden] { display:none; }
+  .updRow { display:flex; align-items:center; gap:12px; margin-top:6px; flex-wrap:wrap; }
+  .updBtn { background:#1f7a3f; color:#fff; border:0; border-radius:9px; padding:8px 16px; font:inherit; font-weight:650; cursor:pointer; }
+  .updBtn:disabled { opacity:.6; cursor:default; }
+  .update .bar { height:8px; background:#cfe9d7; border-radius:99px; overflow:hidden; margin-top:6px; }
+  .update .bar[hidden] { display:none; }
+  .update .bar i { display:block; height:100%; width:0; background:#1f7a3f; transition:width .2s; }
   .sizes { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
   .sizes label { border:1px solid var(--line); border-radius:10px; padding:7px 12px; cursor:pointer; display:flex; gap:7px; align-items:center; }
   .sizes input { accent-color:var(--accent); }
@@ -47,8 +53,10 @@
   <p class="lead">Speak, and your words are typed into any app, with the grammar fixed.</p>
   <div class="update" id="updateBox" hidden>
     <b>A new version of SayIt is out: <span id="newVer"></span></b>
-    <span>Download it and install it over this one. Your key and settings stay.</span>
-    <a id="newLink">Download the new version →</a>
+    <span id="updHow">Press Update now. SayIt downloads it, installs it and opens again by itself. Your keys and settings stay.</span>
+    <div class="updRow"><button id="updNow" class="updBtn">Update now</button> <a id="newLink">or download it yourself →</a></div>
+    <div class="bar" id="updBar" hidden><i id="updFill"></i></div>
+    <span id="updMsg"></span>
   </div>
 
   <section>

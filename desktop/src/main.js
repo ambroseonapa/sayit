@@ -5,6 +5,7 @@ const core = require("./core.js");
 const { typeText } = require("./paste.js");
 const caret = require("./caret.js");
 const winmouse = require("./winmouse.js");
+const updater = require("./updater.js");
 const S = require("./shared.js");
 
 const isMac = process.platform === "darwin";
@@ -158,7 +159,8 @@ function openSettings() {
 }
 
 // ---------- "new version available" ----------
-let update = null; // { version, url }
+let update = null; // { version, url, auto }   auto = SayIt can install it by itself
+let latestRel = null;
 async function checkUpdate(manual) {
   try {
     const r = await fetch(`https://api.github.com/repos/${S.SAYIT_REPO}/releases/latest`, { headers: { accept: "application/vnd.github+json", "user-agent": "SayIt" } });
@@ -166,11 +168,12 @@ async function checkUpdate(manual) {
     const rel = await r.json();
     const latest = String(rel.tag_name || "").replace(/^v/, "");
     const was = update;
-    update = latest && S.sayitNewer(latest, app.getVersion()) ? { version: latest, url: rel.html_url } : null;
+    latestRel = rel;
+    update = latest && S.sayitNewer(latest, app.getVersion()) ? { version: latest, url: rel.html_url, auto: updater.canSelfUpdate() } : null;
     buildTray();
     if (update && (!was || was.version !== update.version) && !manual && Notification.isSupported()) {
-      const n = new Notification({ title: "SayIt " + update.version + " is available", body: "Click to download the new version." });
-      n.on("click", () => shell.openExternal(update.url)); n.show();
+      const n = new Notification({ title: "SayIt " + update.version + " is available", body: update.auto ? "Click to update. It takes about a minute." : "Click to download the new version." });
+      n.on("click", () => (update.auto ? openSettings() : shell.openExternal(update.url))); n.show();
     }
     if (settingsWin) settingsWin.webContents.send("update", update);
     return { update, current: app.getVersion() };
@@ -186,7 +189,7 @@ function trayMenu() {
       click: (m) => app.setLoginItemSettings({ openAtLogin: m.checked }) },
     { label: "Settings…", click: openSettings },
     { label: "Open log (to report a problem)", click: () => shell.openPath(path.join(app.getPath("userData"), "sayit-log.txt")) },
-    update ? { label: "⬆ Update available: v" + update.version + " (download)", click: () => shell.openExternal(update.url) }
+    update ? { label: "⬆ Update to v" + update.version + (update.auto ? " now" : " (download)"), click: () => (update.auto ? openSettings() : shell.openExternal(update.url)) }
            : { label: "Check for updates", click: () => checkUpdate(true).then(() => openSettings()) },
     { type: "separator" },
     { label: "Quit SayIt (v" + app.getVersion() + ")", click: () => app.quit() }
@@ -372,6 +375,20 @@ ipcMain.on("open-settings", openSettings);
 ipcMain.handle("copy", (_e, t) => { require("electron").clipboard.writeText(String(t || "")); return true; });
 ipcMain.handle("update:check", () => checkUpdate(true));
 ipcMain.handle("update:get", () => ({ update, current: app.getVersion() }));
+let installing = false;
+ipcMain.handle("update:install", async () => {
+  if (installing) return { busy: true };
+  if (!latestRel || !update) { const r = await checkUpdate(true); if (!update) return { error: r.error || "You already have the latest version" }; }
+  installing = true;
+  const tell = (f, msg) => { if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send("update-progress", { f, msg }); };
+  try {
+    debugLog("updating to v" + update.version);
+    return await updater.install(latestRel, tell);
+  } catch (e) {
+    debugLog("update failed: " + e.message);
+    return { error: "Couldn't update: " + e.message + ". You can download it instead." };
+  } finally { installing = false; }
+});
 ipcMain.handle("panel:reset", () => {
   settings.panelW = PANEL_DEFAULT.w; settings.panelH = PANEL_DEFAULT.h; settings.panelPos = null; saveSettings();
   return true;
@@ -445,6 +462,12 @@ app.on("will-quit", () => { globalShortcut.unregisterAll(); saveSettings(true); 
 function runTest() {
   settings.keys = { groq: "test" }; settings.firstRun = false;
   if (process.env.SAYIT_SHOWCHANGES) settings.showChanges = true;
+  if (process.env.SAYIT_FAKE_UPDATE) {
+    update = { version: "9.9.9", url: "https://github.com/ambroseonapa/sayit/releases", auto: true };
+    setTimeout(async () => { if (settingsWin) { settingsWin.webContents.send("update", update); await new Promise((r) => setTimeout(r, 300));
+      await settingsWin.webContents.executeJavaScript("window.scrollTo(0,0); document.getElementById('updBar').hidden=false; document.getElementById('updFill').style.width='42%'; document.getElementById('updMsg').textContent='Downloading… 42%'");
+      await new Promise((r) => setTimeout(r, 300)); settingsWin.webContents.capturePage().then((img) => fs.writeFileSync(TEST + ".update.png", img.toPNG())); } }, 4000);
+  }
   for (const k of ["theme", "textSize", "bubbleSize", "panelPlace"]) if (process.env["SAYIT_" + k.toUpperCase()]) settings[k] = process.env["SAYIT_" + k.toUpperCase()];
   button.setBounds(buttonBounds()); broadcast();
   const shot = (w, name) => w.webContents.capturePage().then((img) => fs.writeFileSync(TEST + "." + name + ".png", img.toPNG()));

@@ -54,7 +54,8 @@ async function load() {
 
 document.querySelectorAll("input[name=mode]").forEach((r) => r.addEventListener("change", () => setSync({ mode: r.value })));
 document.querySelectorAll("input[name=engine]").forEach((r) => r.addEventListener("change", () => setSync({ engine: r.value })));
-document.querySelectorAll("input[name=size]").forEach((r) => r.addEventListener("change", () => setSync({ size: r.value })));
+document.querySelectorAll("input[name=size]").forEach((r) => r.addEventListener("change", () => setSync({ size: r.value, barBox: null })));
+document.getElementById("resetBox").addEventListener("click", (e) => { e.preventDefault(); setSync({ barBox: null }); e.target.textContent = "Done ✓ the box is back at the bottom"; });
 document.querySelectorAll("input[name=theme]").forEach((r) => r.addEventListener("change", () => setSync({ theme: r.value })));
 $("lang").addEventListener("change", () => { setSync({ lang: $("lang").value }); checkOffline(); });
 document.querySelectorAll("input[name=speech]").forEach((r) => r.addEventListener("change", () => { setSync({ speech: r.value }); checkOffline(); }));

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.3
+**Desktop app**
+- **Update now**: when a new version is out, press **Update now** in SayIt settings (or in the tray / menu-bar menu). SayIt downloads it, installs it and opens again by itself. No more downloading and installing by hand. (The Windows portable zip opens the download page instead.)
+
+**Chrome extension**
+- **Move and resize the box**: drag its top row to move it, and its bottom-right corner to resize it. SayIt remembers where you put it and how big. A− / A+ still changes the size. Settings → Look of the listening box → *Put the box back at the bottom* undoes it.
+
+**Both**
+- SayIt is now open source under the **MIT License**.
+
 ## 0.8.2
 **Desktop app**
 - Fixed: **dragging the box made it bigger and bigger** (Windows with display scaling of 125% or 150%). The box now keeps its exact size when you move it. If your box had grown too big, it is set back to the normal size once.

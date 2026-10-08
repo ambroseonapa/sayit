@@ -4,7 +4,8 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const DEFAULTS = {
     mode: "grammar", engine: "free", lang: "en-GB", spokenPunct: true, autoPunct: true, undoBar: true,
-    speech: "groq", autoStop: 0, size: "l", theme: "system", showChanges: false
+    speech: "groq", autoStop: 0, size: "l", theme: "system", showChanges: false,
+    barBox: null // where you dragged the box and how big you made it: { x, y, w, h } (null = bottom middle)
   };
   const MODES = {
     exact: { label: "Exact words", hint: "types exactly what you say" },
@@ -216,6 +217,13 @@
     .ins { color: #2e9e5b; text-decoration: underline; text-decoration-color: rgba(46,158,91,.5); text-underline-offset: 3px; }
     :host(.dark) .ins { color: #7fd99a; }
     :host(.dark) .del { color: #ff8f7a; }
+    .bar .row { cursor: grab; }
+    .bar .row button, .bar .row .size { cursor: pointer; }
+    .bar.moving, .bar.moving .row { cursor: grabbing; }
+    .bar.custom .text { height: var(--ch); min-height: 0; max-height: none; }
+    .grip { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; cursor: nwse-resize; opacity: .55; }
+    .grip::before { content: ""; position: absolute; right: 3px; bottom: 3px; width: 9px; height: 9px;
+      background: linear-gradient(135deg, transparent 45%, var(--muted) 45%, var(--muted) 55%, transparent 55%, transparent 70%, var(--muted) 70%, var(--muted) 80%, transparent 80%); }
     .pillbar { padding: .4em .5em .4em .85em; gap: .35em; font-size: .85em; border-radius: 999px; bottom: 20px; }
     .pillbar .ok { color: var(--ok); font-weight: 700; }
     .pillbar .link { font-weight: 600; padding: .2em .55em; border-radius: 999px; }
@@ -234,6 +242,23 @@
     host.style.setProperty("--f", v.f + "px");
     host.style.setProperty("--t", v.t + "px");
     host.style.setProperty("--h", v.h + "px");
+    placeBar();
+  }
+  // Put the box where you dragged it, at the size you gave it (kept inside the window).
+  function placeBar() {
+    const bar = root && root.querySelector(".bar");
+    if (!bar) return;
+    const b = settings.barBox;
+    if (!b) { bar.classList.remove("custom"); bar.style.cssText = ""; return; }
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const w = Math.max(320, Math.min(b.w || 600, vw - 16));
+    bar.classList.add("custom");
+    bar.style.width = w + "px";
+    bar.style.setProperty("--ch", Math.max(50, Math.min(b.h || 110, vh - 160)) + "px");
+    bar.style.transform = "none"; bar.style.bottom = "auto";
+    const hgt = bar.offsetHeight || 200;
+    bar.style.left = Math.max(8, Math.min(b.x, vw - w - 8)) + "px";
+    bar.style.top = Math.max(8, Math.min(b.y, vh - hgt - 8)) + "px";
   }
   function ensureRoot() {
     if (!host || !host.isConnected) {
@@ -255,6 +280,12 @@
     const path = e.composedPath ? e.composedPath() : [];
     if (!path.includes(host)) return;
     const b = path.find((n) => ACTIONS.has(n));
+    if (!b && (e.type === "pointerdown") && e.button === 0) {
+      const bar = path.find((n) => n.classList && n.classList.contains("bar"));
+      const onGrip = path.some((n) => n.classList && n.classList.contains("grip"));
+      const onRow = path.some((n) => n.classList && n.classList.contains("row"));
+      if (bar && (onGrip || onRow)) startGesture(onGrip ? "resize" : "move", bar, e);
+    }
     if (!b) {
       if (e.type === "mousedown" || e.type === "pointerdown") e.preventDefault(); // keep the cursor in the text box
       e.stopPropagation();
@@ -268,6 +299,38 @@
   }
   for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) window.addEventListener(type, onPointer, true);
 
+  // ---------- drag the box (its top row) and resize it (bottom-right corner) ----------
+  let gest = null;
+  function startGesture(kind, bar, e) {
+    const r = bar.getBoundingClientRect(), t = bar.querySelector(".text");
+    gest = { kind, bar, sx: e.clientX, sy: e.clientY, x: r.left, y: r.top, w: r.width, h: t ? t.getBoundingClientRect().height : 110 };
+    bar.classList.add("moving");
+  }
+  window.addEventListener("pointermove", (e) => {
+    if (!gest) return;
+    e.preventDefault(); e.stopPropagation();
+    const dx = e.clientX - gest.sx, dy = e.clientY - gest.sy;
+    const box = { x: gest.x, y: gest.y, w: gest.w, h: gest.h };
+    if (gest.kind === "move") { box.x += dx; box.y += dy; } else { box.w = gest.w + dx; box.h = gest.h + dy; }
+    settings.barBox = box; placeBar();
+  }, true);
+  const endGesture = (e) => {
+    if (!gest) return;
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    gest.bar.classList.remove("moving");
+    gest = null;
+    const bar = root && root.querySelector(".bar");
+    if (bar && settings.barBox) { // save what's really on screen (after keeping it inside the window)
+      const r = bar.getBoundingClientRect(), t = bar.querySelector(".text");
+      settings.barBox = { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(t ? t.getBoundingClientRect().height : settings.barBox.h) };
+    }
+    save({ barBox: settings.barBox });
+  };
+  window.addEventListener("pointerup", endGesture, true);
+  window.addEventListener("pointercancel", endGesture, true);
+  window.addEventListener("blur", () => endGesture());
+  window.addEventListener("resize", () => placeBar());
+
   function renderBar() {
     ensureRoot();
     clearToast();
@@ -280,8 +343,11 @@
       row.append(el("span", "dot"), el("span", "status"), el("span", "chip"), size,
         btn("pill mode", "", cycleMode), btn("pill copy", "Copy", copyNow, "Copy the text so far"),
         btn("act cancel", "Cancel", () => stop(true)), btn("act done", "Done", () => stop(false)));
-      bar.append(row, el("div", "text"));
+      bar.append(row, el("div", "text"), el("div", "grip"));
+      bar.querySelector(".grip").title = "Drag to resize";
+      row.title = "Drag to move";
       root.appendChild(bar);
+      placeBar();
     }
     bar.classList.toggle("working", state === "working");
     const status = bar.querySelector(".status");
@@ -458,8 +524,9 @@
         else if (d.t === "ins" || d.t === "fix") t.append(el("span", "ins", d.w), " ");
         else t.append(d.w + " ");
       }
-      bar.append(row, t);
+      bar.append(row, t, el("div", "grip"));
       root.appendChild(bar);
+      placeBar();
     });
   }
   // same word-by-word comparison as shared.js (kept here because this script runs inside web pages)

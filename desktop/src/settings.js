@@ -63,10 +63,22 @@ function showUpdate(u) {
   if (!u) { $("updateBox").hidden = true; return false; }
   $("newVer").textContent = "v" + u.version;
   $("newLink").onclick = () => api.openUrl(u.url);
+  $("updNow").hidden = !u.auto;
+  $("updHow").textContent = u.auto
+    ? "Press Update now. SayIt downloads it, installs it and opens again by itself. Your keys and settings stay."
+    : "Download it and install it over this one. Your keys and settings stay.";
+  if (!u.auto) $("newLink").textContent = "Download the new version →";
   $("updateBox").hidden = false;
   return true;
 }
 api.on("update", showUpdate);
+$("updNow").addEventListener("click", async () => {
+  $("updNow").disabled = true; $("updBar").hidden = false; $("updMsg").textContent = "Starting…";
+  const r = await api.installUpdate();
+  if (r && r.error) { $("updMsg").textContent = r.error; $("updNow").disabled = false; $("updBar").hidden = true; }
+  else if (r && r.opened) { $("updMsg").textContent = "The download page is open in your browser."; $("updNow").disabled = false; }
+});
+api.on("update-progress", ({ f, msg }) => { $("updFill").style.width = Math.round(f * 100) + "%"; $("updMsg").textContent = msg; });
 $("checkUpd").addEventListener("click", async () => {
   $("checkUpd").textContent = "Checking…";
   const r = await api.checkUpdate();
