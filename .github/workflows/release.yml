@@ -93,7 +93,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm, cache-dependency-path: desktop/package-lock.json }
       - run: npm ci
-      - run: npm run dist:win
+      - name: npm run dist:win
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run dist:win 2>&1 | tee build.log || { tail -n 40 build.log | sed 's/^/::error::/'; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -111,9 +115,13 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm, cache-dependency-path: desktop/package-lock.json }
       - run: npm ci
-      - run: npm run dist:mac
+      - name: npm run dist:mac
+        run: |
+          set -o pipefail
+          npm run dist:mac 2>&1 | tee build.log || { tail -n 40 build.log | sed 's/^/::error::/'; exit 1; }
       - name: Sign for this Mac only (ad-hoc) and zip
         run: |
+          ls dist
           codesign --force --deep --sign - dist/mac-arm64/SayIt.app
           codesign --force --deep --sign - dist/mac/SayIt.app
           ditto -c -k --keepParent dist/mac-arm64/SayIt.app SayIt-Mac-AppleSilicon.zip
