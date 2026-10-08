@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0
+**Desktop app**
+- **The box opens where you're typing.** On Windows SayIt finds the text cursor (Word, Notepad, Outlook and most apps); otherwise it uses where you last clicked. Choose "where I last moved it" or "next to the mic button" instead if you prefer.
+- **Move and resize the box.** Drag its top bar to move it and its bottom-right corner to resize it. SayIt remembers the size. Moving the box never moves the mic button.
+- New default shape: a bit taller than wide, easier to read. A− / A+ now changes the text size.
+- **Light and dark theme** (or follow your computer), for the box and the mic button. The mic button turns red while you're recording.
+- Fixed: clicking the mic button sometimes did nothing until you pressed the shortcut (a tiny hand movement was taken as a drag).
+- Fixed: clicking the tray icon on Windows started recording in the wrong place; it now opens the menu.
+- Speech now works with a Groq, OpenAI **or Gemini** key.
+
+**Chrome extension**
+- **Light and dark theme** for the listening box.
+- Speech works with a Groq, OpenAI or Gemini key.
+- Fixed: tapping SayIt could do nothing if Chrome's toolbar had taken keyboard focus for a moment.
+
+
 ## 0.6.0
 **Chrome extension**
 - **Much faster: same speech engine as the desktop app.** New default speech mode, *Fast and accurate (Groq)*: your voice is cut at each pause and turned into text while you keep talking, so the text is ready almost as soon as you press Done. It's also better with accents and names.

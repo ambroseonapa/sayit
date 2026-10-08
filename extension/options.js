@@ -31,6 +31,7 @@ async function load() {
   document.querySelector(`input[name=mode][value=${S.mode}]`).checked = true;
   document.querySelector(`input[name=engine][value=${S.engine}]`).checked = true;
   document.querySelector(`input[name=size][value=${S.size}]`).checked = true;
+  document.querySelector(`input[name=theme][value=${S.theme || "system"}]`).checked = true;
   $("lang").value = S.lang;
   $("spokenPunct").checked = S.spokenPunct;
   $("autoPunct").checked = S.autoPunct;
@@ -52,6 +53,7 @@ async function load() {
 document.querySelectorAll("input[name=mode]").forEach((r) => r.addEventListener("change", () => setSync({ mode: r.value })));
 document.querySelectorAll("input[name=engine]").forEach((r) => r.addEventListener("change", () => setSync({ engine: r.value })));
 document.querySelectorAll("input[name=size]").forEach((r) => r.addEventListener("change", () => setSync({ size: r.value })));
+document.querySelectorAll("input[name=theme]").forEach((r) => r.addEventListener("change", () => setSync({ theme: r.value })));
 $("lang").addEventListener("change", () => { setSync({ lang: $("lang").value }); checkOffline(); });
 document.querySelectorAll("input[name=speech]").forEach((r) => r.addEventListener("change", () => { setSync({ speech: r.value }); checkOffline(); }));
 $("vocab").addEventListener("change", () => setSync({ vocab: $("vocab").value.trim() }));
@@ -121,7 +123,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 async function checkOffline() {
   const st = $("dlStatus"), btn = $("dl");
   $("dlRow").style.display = S.speech === "local" ? "" : "none";
-  if (S.speech === "groq" && !KEYS.groq && !KEYS.openai) {
+  if (S.speech === "groq" && !KEYS.groq && !KEYS.openai && !KEYS.gemini) {
     $("aiStatus").textContent = "Fast and accurate speech needs your Groq key above (until then SayIt uses Chrome's built-in speech)."; $("aiStatus").className = "status bad";
   }
   if (!SR || typeof SR.available !== "function") {

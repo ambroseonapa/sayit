@@ -4,7 +4,7 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const DEFAULTS = {
     mode: "grammar", engine: "free", lang: "en-GB", spokenPunct: true, autoPunct: true, undoBar: true,
-    speech: "groq", autoStop: 0, size: "l"
+    speech: "groq", autoStop: 0, size: "l", theme: "system"
   };
   const MODES = {
     exact: { label: "Exact words", hint: "types exactly what you say" },
@@ -173,9 +173,12 @@
   // ---------- UI (shadow DOM so the page's styles can't touch it) ----------
   const CSS = `
     :host { all: initial; }
+    :host(.dark)  { --bg:#1c1f26; --fg:#f4f1ea; --muted:#9a978f; --sub:#2c313c; --line:#3a404d; --textbg:#14161b; --text:#fbf8f2; --wait:#9a978f; --link:#ffb199; --ok:#7fd99a; }
+    :host(.light) { --bg:#ffffff; --fg:#1c1f26; --muted:#6b6862; --sub:#f3f0ea; --line:#e4dfd5; --textbg:#faf7f1; --text:#1c1f26; --wait:#8c8a85; --link:#c43d22; --ok:#1f7a3f; }
+    :host(.light) .bar, :host(.light) .toast { box-shadow: 0 14px 40px rgba(0,0,0,.18), 0 0 0 1px var(--line); }
     .bar, .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 2147483647;
-      font: var(--f)/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #f4f1ea;
-      background: #1c1f26; border-radius: 18px; box-shadow: 0 14px 40px rgba(0,0,0,.4); box-sizing: border-box;
+      font: var(--f)/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg);
+      background: var(--bg); border-radius: 18px; box-shadow: 0 14px 40px rgba(0,0,0,.4); box-sizing: border-box;
       pointer-events: auto; user-select: none; }
     .bar { width: min(var(--w), calc(100vw - 32px)); padding: .85em 1em 1em; }
     .row { display: flex; align-items: center; gap: .55em; flex-wrap: wrap; }
@@ -185,36 +188,42 @@
     @keyframes pulse { 70% { box-shadow: 0 0 0 .7em rgba(255,90,60,0); } 100% { box-shadow: 0 0 0 0 rgba(255,90,60,0); } }
     @keyframes spin { to { transform: rotate(360deg); } }
     .status { font-weight: 650; flex: 1; min-width: 6em; }
-    .chip { font-size: .72em; color: #9fd8b0; border: 1px solid #355a42; border-radius: 999px; padding: .1em .6em; cursor: help; }
-    .pill { background: #2c313c; color: #f4f1ea; border: 1px solid #3a404d; border-radius: 999px;
+    .chip { font-size: .72em; color: var(--ok); border: 1px solid var(--line); border-radius: 999px; padding: .1em .6em; cursor: help; }
+    .pill { background: var(--sub); color: var(--fg); border: 1px solid var(--line); border-radius: 999px;
       padding: .3em .75em; font: inherit; font-size: .8em; cursor: pointer; }
     .pill:hover { border-color: #ff5a3c; }
-    .size { display: inline-flex; border: 1px solid #3a404d; border-radius: 999px; overflow: hidden; }
-    .size button { background: #2c313c; color: #f4f1ea; border: 0; font: inherit; font-size: .8em; padding: .3em .65em; cursor: pointer; }
-    .size button + button { border-left: 1px solid #3a404d; }
-    .size button:hover { background: #3a404d; }
+    .size { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+    .size button { background: var(--sub); color: var(--fg); border: 0; font: inherit; font-size: .8em; padding: .3em .65em; cursor: pointer; }
+    .size button + button { border-left: 1px solid var(--line); }
+    .size button:hover { background: var(--line); }
     button.act { border: 0; border-radius: .6em; padding: .5em 1.05em; font: inherit; font-weight: 650; cursor: pointer; }
     .done { background: #ff5a3c; color: #fff; }
     .done:hover { background: #ff7154; }
-    .cancel { background: transparent; color: #b8b4ab; }
-    .cancel:hover { color: #fff; }
+    .cancel { background: transparent; color: var(--muted); }
+    .cancel:hover { color: var(--fg); }
     button:disabled { opacity: .45; cursor: default; }
     .text { margin-top: .7em; min-height: var(--h); max-height: 40vh; overflow: auto; white-space: pre-wrap; word-wrap: break-word;
-      font-size: var(--t); line-height: 1.45; color: #fbf8f2; background: #14161b; border-radius: .6em; padding: .55em .7em; box-sizing: border-box; user-select: text; }
-    .hint { color: #8c8a85; }
-    .interim { color: #9a978f; }
+      font-size: var(--t); line-height: 1.45; color: var(--text); background: var(--textbg); border-radius: .6em; padding: .55em .7em; box-sizing: border-box; user-select: text; }
+    .hint { color: var(--muted); }
+    .interim { color: var(--wait); }
     .toast { padding: .75em .9em; display: flex; gap: .7em; align-items: center; width: max-content; max-width: calc(100vw - 32px); }
     .toast .msg { flex: 1; }
-    .link { background: none; border: 0; color: #ffb199; font: inherit; font-weight: 650; cursor: pointer; padding: .15em .3em; white-space: nowrap; }
-    .link:hover { color: #fff; text-decoration: underline; }
+    .link { background: none; border: 0; color: var(--link); font: inherit; font-weight: 650; cursor: pointer; padding: .15em .3em; white-space: nowrap; }
+    .link:hover { color: var(--fg); text-decoration: underline; }
     .err { border-left: 4px solid #ff5a3c; }
     .pillbar { padding: .4em .5em .4em .85em; gap: .35em; font-size: .85em; border-radius: 999px; bottom: 20px; }
-    .pillbar .ok { color: #7fd99a; font-weight: 700; }
+    .pillbar .ok { color: var(--ok); font-weight: 700; }
     .pillbar .link { font-weight: 600; padding: .2em .55em; border-radius: 999px; }
-    .pillbar .link:hover { background: #2c313c; text-decoration: none; }
+    .pillbar .link:hover { background: var(--sub); text-decoration: none; }
   `;
+  function themeName() {
+    const t = settings.theme || "system";
+    if (t === "light" || t === "dark") return t;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
   function applySize() {
     if (!host) return;
+    host.classList.remove("light", "dark"); host.classList.add(themeName());
     const v = SIZE_VARS[settings.size] || SIZE_VARS.l;
     host.style.setProperty("--w", v.w + "px");
     host.style.setProperty("--f", v.f + "px");
@@ -669,7 +678,10 @@
     if (state === "listening") return stop(false);
     if (state === "working") { reset(); clearUI(); return; } // tapping the icon always closes it
     try { if (window.frameElement && window.frameElement.classList.contains("docs-texteventtarget-iframe")) return; } catch {} // the main page handles Docs
-    if (!document.hasFocus()) return;
+    // Several frames can run SayIt; only the one you're typing in should answer. If no frame has
+    // keyboard focus (e.g. Chrome's toolbar took it for a moment), the main page still answers
+    // when it has a text box selected.
+    if (!document.hasFocus() && window !== window.top) return;
     const a = deepActive();
     const d = docsInput(a);
     if (d) { docsEl = d; target = null; return start(); }

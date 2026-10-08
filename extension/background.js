@@ -233,8 +233,9 @@ const FAKE_WHISPER = /^(thank(s| you)( so much)?( for watching| for listening)?[
 async function transcribe({ audio, mime, lang, prompt }) {
   const s = await getSettings();
   const keys = s.keys || {};
-  const which = keys.groq ? "groq" : keys.openai ? "openai" : null;
-  if (!which) throw new Error("Fast speech needs a Groq key (free) or an OpenAI key");
+  const which = keys.groq ? "groq" : keys.openai ? "openai" : keys.gemini ? "gemini" : null;
+  if (!which) throw new Error("Fast speech needs a Groq key (free), an OpenAI key or a Gemini key. Claude can't listen to audio");
+  if (which === "gemini" && keys.groq !== "TEST") return transcribeGemini({ audio, mime, lang, prompt }, s);
   if (keys.groq === "TEST") { await new Promise((r) => setTimeout(r, 250)); return { text: "piece " + (audio.length % 97), engine: "test" }; } // automated tests only
   const bin = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
   const type = mime || "audio/webm";
@@ -267,6 +268,36 @@ async function transcribe({ audio, mime, lang, prompt }) {
   throw new Error(lastErr || "speech service error");
 }
 
+// Gemini can also turn speech into text (slower than Groq, but works with only a Gemini key).
+const GEMINI_AUDIO_MODELS = ["gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash"];
+async function transcribeGemini({ audio, mime, lang, prompt }, s) {
+  const vocab = (s.vocab || "").split(/[,\n]+/).map((w) => w.trim()).filter(Boolean);
+  const instr = "Transcribe this audio exactly as spoken, word for word" + ((lang || "en").startsWith("en") ? ", in English" : "") +
+    ". Add normal punctuation. Output only the words that were said, nothing else. If nobody speaks, output nothing." +
+    (vocab.length ? " These names may appear: " + vocab.join(", ") + "." : "") +
+    (prompt ? " For context, the speaker just said: \"" + prompt.slice(-200) + "\"" : "");
+  const models = whisperModel.gemini ? [whisperModel.gemini] : GEMINI_AUDIO_MODELS;
+  let lastErr;
+  for (const model of models) {
+    let r;
+    try {
+      r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+        method: "POST", signal: withTimeout(20000),
+        headers: { "x-goog-api-key": s.keys.gemini, "content-type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: instr }, { inline_data: { mime_type: (mime || "audio/wav").split(";")[0], data: audio } }] }], generationConfig: { temperature: 0 } })
+      });
+    } catch (e) { throw new Error(e.name === "AbortError" ? "speech service took too long" : "couldn't reach Google Gemini"); }
+    if (r.status === 404 || r.status === 400) { lastErr = await errText(r); continue; }
+    if (!r.ok) throw new Error(await errText(r));
+    whisperModel.gemini = model;
+    const data = await r.json();
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    const text = parts.map((p) => p.text || "").join(" ").trim();
+    return { text: FAKE_WHISPER.test(text) ? "" : text, engine: "gemini" };
+  }
+  throw new Error(lastErr || "speech service error");
+}
+
 // ---------- Fast & accurate speech: recorder page + Whisper at each pause ----------
 // The recorder runs in a hidden extension page, so the microphone permission is asked once for
 // SayIt (not once per website), and the audio is cut at your pauses and transcribed while you talk.
@@ -288,7 +319,7 @@ function promptSoFar() {
 }
 async function captureStart(sender) {
   const s = await getSettings();
-  if (!(s.keys && (s.keys.groq || s.keys.openai))) return { error: "no-key" };
+  if (!(s.keys && (s.keys.groq || s.keys.openai || s.keys.gemini))) return { error: "no-key" };
   cap = { tabId: sender.tab.id, frameId: sender.frameId || 0, texts: new Map(), lang: s.lang };
   await ensureOffscreen();
   const r = await chrome.runtime.sendMessage({ target: "offscreen", type: "start" });

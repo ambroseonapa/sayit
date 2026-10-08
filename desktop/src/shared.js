@@ -16,7 +16,8 @@ var SAYIT_DEFAULTS = {
   undoBar: true,          // small Undo / Original pill after inserting
   fillers: true,          // drop "um", "uh", stutters like "I I I" (never changes real words)
   tone: "natural",        // rephrase tone: "natural" | "formal" | "friendly" | "concise"
-  size: "l"               // "m" | "l" | "xl"
+  size: "l",              // "m" | "l" | "xl"
+  theme: "system"         // "system" | "light" | "dark" (the listening bar)
 };
 
 // Where new versions are published (used by the "update available" check).

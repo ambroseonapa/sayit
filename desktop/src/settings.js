@@ -33,7 +33,9 @@ async function load() {
   $("fillers").checked = S.fillers !== false;
   $("tone").value = S.tone || "natural";
   document.querySelector(`input[name=bubbleSize][value=${S.bubbleSize || "m"}]`).checked = true;
-  document.querySelector(`input[name=panelSize][value=${S.panelSize || "l"}]`).checked = true;
+  for (const [name, def] of [["theme", "system"], ["panelPlace", "typing"], ["textSize", "l"]]) {
+    const r = document.querySelector(`input[name=${name}][value=${S[name] || def}]`); if (r) r.checked = true;
+  }
   const u = await api.getUpdate();
   $("ver").textContent = "v" + u.current;
   showUpdate(u.update);
@@ -51,7 +53,8 @@ $("showBubble").addEventListener("change", () => set({ showBubble: $("showBubble
 $("fillers").addEventListener("change", () => set({ fillers: $("fillers").checked }));
 $("tone").addEventListener("change", () => set({ tone: $("tone").value }));
 document.querySelectorAll("input[name=bubbleSize]").forEach((r) => r.addEventListener("change", () => set({ bubbleSize: r.value })));
-document.querySelectorAll("input[name=panelSize]").forEach((r) => r.addEventListener("change", () => set({ panelSize: r.value })));
+for (const name of ["theme", "panelPlace", "textSize"]) document.querySelectorAll(`input[name=${name}]`).forEach((r) => r.addEventListener("change", () => set({ [name]: r.value })));
+$("resetPanel").addEventListener("click", async () => { await api.resetPanel(); $("resetPanel").textContent = "Box size reset ✓"; });
 function showUpdate(u) {
   if (!u) { $("updateBox").hidden = true; return false; }
   $("newVer").textContent = "v" + u.version;

@@ -1,78 +1,84 @@
+// The box you speak into: records, cuts at pauses, shows your words, fixes grammar, types it.
 const api = window.sayit;
 const $ = (id) => document.getElementById(id);
 const RATE = 16000, FRAME = 320; // 20 ms frames
 const MODES = { exact: "Exact words", grammar: "Fix grammar", rephrase: "Rephrase" };
+const TEXT_SIZES = ["s", "m", "l", "xl"];
+const undoKey = api.platform === "darwin" ? "⌘Z" : "Ctrl+Z";
 
 let settings = {};
 let state = "idle"; // idle | listening | working | done
 let stream = null, ctx = null, node = null, src = null;
 let segs = [];          // { id, status: pending|done|failed, text }
-let cur = null;         // segment being recorded: { frames: [], speech: 0, silence: 0 }
-let noise = 0.004, t0 = 0, timer = null, spec = null, specTimer = null, segId = 0, lastError = "";
+let cur = null;         // piece being recorded
+let noise = 0.004, t0 = 0, timer = null, spec = null, specTimer = null, segId = 0, lastError = "", doneTimer = null;
 
 api.getSettings().then((s) => { settings = s; paintStatic(); });
 api.on("settings", (s) => { settings = s; paintStatic(); });
 api.on("toggle", () => toggle());
 api.on("cancel", () => cancel());
 
-const PANEL_SIZES = ["m", "l", "xl"];
-function resizePanel(d) {
-  const i = Math.max(0, Math.min(2, PANEL_SIZES.indexOf(settings.panelSize || "l") + d));
-  settings.panelSize = PANEL_SIZES[i];
-  api.setSettings({ panelSize: settings.panelSize });
+function paintStatic() {
+  document.body.classList.remove("dark", "light", "ts-s", "ts-m", "ts-l", "ts-xl");
+  document.body.classList.add(settings.themeResolved || "dark", "ts-" + (settings.textSize || "l"));
+  if (api.platform === "darwin") document.body.classList.add("mac");
+  $("mode").textContent = (MODES[settings.mode] || MODES.grammar) + " ▾";
+  const hk = (settings.hotkey || "Alt+Shift+D").replace(/Control/g, "Ctrl").replace(/Command/g, "Cmd");
+  $("hk").textContent = hk + " to finish · Esc to cancel";
+}
+function setTextSize(d) {
+  const i = Math.max(0, Math.min(TEXT_SIZES.length - 1, TEXT_SIZES.indexOf(settings.textSize || "l") + d));
+  settings.textSize = TEXT_SIZES[i];
+  api.setSettings({ textSize: settings.textSize });
   paintStatic();
 }
-function paintStatic() {
-  document.body.classList.remove("sz-m", "sz-l", "sz-xl");
-  document.body.classList.add("sz-" + (settings.panelSize || "l"));
-  $("mode").textContent = (MODES[settings.mode] || MODES.grammar) + " ▾";
-  $("hk").textContent = (settings.hotkey || "Alt+Shift+D").replace("CommandOrControl", "Ctrl") + " to finish · Esc to cancel";
-  $("btn").title = "SayIt: click to speak (" + (settings.hotkey || "Alt+Shift+D") + ") · right-click for menu";
-}
 
-// ---------- button: click to speak, drag to move, right-click for menu ----------
-let down = null;
-$("btn").addEventListener("pointerdown", (e) => {
-  if (e.button === 2) return;
-  down = { x: e.screenX, y: e.screenY, moved: false };
-  $("btn").setPointerCapture(e.pointerId);
-});
-$("btn").addEventListener("pointermove", (e) => {
-  if (!down) return;
-  const dx = e.screenX - down.x, dy = e.screenY - down.y;
-  if (!down.moved && Math.hypot(dx, dy) < 4) return;
-  down.moved = true;
-  api.drag(dx, dy);
-  down.x = e.screenX; down.y = e.screenY;
-});
-$("btn").addEventListener("pointerup", () => {
-  if (!down) return;
-  const moved = down.moved; down = null;
-  if (moved) api.dragEnd(); else toggle();
-});
-$("btn").addEventListener("contextmenu", (e) => { e.preventDefault(); api.menu(); });
 $("done").addEventListener("click", () => finish());
 $("cancel").addEventListener("click", () => cancel());
+$("close").addEventListener("click", () => cancel());
 $("settings").addEventListener("click", () => api.openSettings());
-$("smaller").addEventListener("click", () => resizePanel(-1));
-$("bigger").addEventListener("click", () => resizePanel(1));
+$("smaller").addEventListener("click", () => setTextSize(-1));
+$("bigger").addEventListener("click", () => setTextSize(1));
 $("mode").addEventListener("click", () => {
   const order = ["exact", "grammar", "rephrase"];
   settings.mode = order[(order.indexOf(settings.mode) + 1) % 3];
   api.setSettings({ mode: settings.mode });
   spec = null; scheduleSpec(); paintStatic();
 });
-for (let i = 0; i < 9; i++) $("meter").appendChild(document.createElement("i"));
+for (let i = 0; i < 7; i++) $("meter").appendChild(document.createElement("i"));
+
+// ---------- move (drag the top bar) and resize (drag the corner) ----------
+function dragger(el, onMove, onEnd, skip) {
+  let d = null;
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || (skip && skip(e))) return;
+    d = { x: e.screenX, y: e.screenY };
+    try { el.setPointerCapture(e.pointerId); } catch {}
+    e.preventDefault();
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!d) return;
+    const dx = e.screenX - d.x, dy = e.screenY - d.y;
+    if (!dx && !dy) return;
+    d.x = e.screenX; d.y = e.screenY;
+    onMove(dx, dy);
+  });
+  const end = () => { if (d) { d = null; onEnd(); } };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+}
+dragger($("top"), (dx, dy) => api.panelMove(dx, dy), () => api.panelMoveEnd(), (e) => e.target.closest("button"));
+dragger($("grip"), (dx, dy) => api.panelResize(dx, dy), () => api.panelResizeEnd());
 
 // ---------- UI ----------
 function setState(s, msg) {
   state = s;
-  document.body.classList.toggle("exp", s !== "idle");
   document.body.classList.toggle("working", s === "working");
   document.body.classList.toggle("done", s === "done");
   $("done").disabled = s !== "listening";
   $("mode").disabled = s !== "listening";
   if (msg) $("status").textContent = msg;
+  api.panelState(s);
 }
 function paintText() {
   const t = $("text");
@@ -86,7 +92,7 @@ function paintText() {
 function paintMeter(level) {
   const bars = $("meter").children;
   for (let i = 0; i < bars.length; i++) {
-    const v = Math.max(3, Math.min(18, level * 260 * (0.6 + 0.4 * Math.sin(Date.now() / 90 + i * 1.7))));
+    const v = Math.max(3, Math.min(16, level * 240 * (0.6 + 0.4 * Math.sin(Date.now() / 90 + i * 1.7))));
     bars[i].style.height = v + "px";
   }
 }
@@ -109,8 +115,7 @@ function onFrame(f) {
   let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
   const rms = Math.sqrt(sum / f.length);
   paintMeter(rms);
-  const threshold = Math.max(0.012, noise * 3);
-  const speaking = rms > threshold;
+  const speaking = rms > Math.max(0.012, noise * 3);
   if (!speaking) noise = noise * 0.97 + rms * 0.03; // learn the room's background noise
 
   if (!cur) cur = { frames: [], flags: [], speech: 0, silence: 0 };
@@ -127,8 +132,8 @@ function onFrame(f) {
     }
     if (cur.speech < 5) return;
   }
-  // You paused (0.7 s) after at least a second of talking, or this piece is getting long: send it now.
-  if ((cur.silence >= 35 && secs >= 1.2) || secs >= 28) cutSegment();
+  // You paused (0.6 s) after at least a second of talking, or this piece is getting long: send it now.
+  if ((cur.silence >= 30 && secs >= 1.0) || secs >= 25) cutSegment();
   else if (cur.speech === 5) paintText();
 }
 
@@ -181,17 +186,17 @@ function scheduleSpec() {
 }
 
 // ---------- flow ----------
-async function toggle() {
+function toggle() {
   if (state === "listening") return finish();
   if (state === "working") return;
   start();
 }
 
 async function start() {
+  clearTimeout(doneTimer);
   if (!settings.hasKey) {
-    setState("done", "SayIt needs a free Groq key to hear you (Claude can fix grammar, but can't turn speech into text). Opening settings…");
-    api.expand(true);
-    setTimeout(() => { collapse(); api.openSettings(); }, 3500);
+    setState("done", "SayIt needs a speech key: Groq (free, fastest), OpenAI or Gemini. Claude can fix grammar but can't listen. Opening settings…");
+    doneTimer = setTimeout(() => { close(); api.openSettings(); }, 4000);
     return;
   }
   segs = []; cur = null; spec = null; noise = 0.004; lastError = "";
@@ -204,14 +209,13 @@ async function start() {
     $("time").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   }, 250);
   $("time").textContent = "0:00";
-  api.expand(true);
   try {
     if (!(await api.micAccess())) throw new Error("not allowed");
     await startMic();
   } catch (e) {
     stopMic(); clearInterval(timer);
     setState("done", "Microphone blocked. Allow SayIt to use the microphone in your system settings.");
-    setTimeout(collapse, 5000);
+    doneTimer = setTimeout(close, 5000);
   }
 }
 
@@ -219,10 +223,10 @@ function cancel() {
   if (state === "idle") return;
   stopMic(); clearInterval(timer); clearTimeout(specTimer);
   segs = []; cur = null;
-  collapse();
+  close();
 }
 
-function collapse() { setState("idle"); api.expand(false); }
+function close() { clearTimeout(doneTimer); setState("idle"); }
 
 function waitForSegments(ms) {
   return new Promise((res) => {
@@ -243,10 +247,9 @@ async function finish() {
   let text = fullText();
   if (!text) {
     setState("done", lastError ? "Couldn't hear it: " + lastError : "Didn't catch anything. Try again.");
-    setTimeout(collapse, lastError ? 5000 : 2000);
+    doneTimer = setTimeout(close, lastError ? 5000 : 2000);
     return;
   }
-  if (segs.some((x) => x.status === "failed")) lastError = lastError || "part of it failed";
 
   let note = "";
   if (settings.mode !== "exact") {
@@ -262,12 +265,14 @@ async function finish() {
   const res = await api.type(text);
   if (res && res.error === "mac-accessibility") {
     setState("done", "Copied. Press ⌘V to paste, and allow SayIt under System Settings › Privacy › Accessibility.");
-    setTimeout(collapse, 7000);
+    doneTimer = setTimeout(close, 7000);
     return;
   }
-  const warn = [note, segs.some((x) => x.status === "failed") ? "some words were lost (" + lastError + ")" : ""].filter(Boolean).join("; ");
-  setState("done", warn ? "Inserted, but " + warn : "Inserted · " + (api.platform === "darwin" ? "⌘Z" : "Ctrl+Z") + " to undo");
-  setTimeout(() => { if (state === "done") collapse(); }, warn ? 4000 : 1300);
+  const lost = segs.some((x) => x.status === "failed") ? "some words were lost (" + (lastError || "slow connection") + ")" : "";
+  const warn = [note, lost].filter(Boolean).join("; ");
+  setState("done", warn ? "Inserted, but " + warn : "Inserted · " + undoKey + " to undo");
+  doneTimer = setTimeout(() => { if (state === "done") close(); }, warn ? 4000 : 1200);
 }
 
+paintStatic();
 setState("idle");

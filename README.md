@@ -39,7 +39,7 @@ SayIt uses AI to fix grammar (and, in the desktop app, to turn your voice into t
 2. Click **Create API key**, give it any name, and copy the key (it starts with `gsk_`).
 3. Paste it into SayIt's settings (below). Keep it private, like a password.
 
-> **The Groq key is always needed for speech**, even if you choose another AI (like Claude or Gemini) to fix the grammar. Those can fix text but can't turn your voice into text.
+> **For speech, SayIt needs a Groq key (free, fastest), an OpenAI key or a Google Gemini key.** Any of them works, and you can add more than one. Claude can fix grammar but can't listen to audio, so a Claude key alone isn't enough.
 >
 > The Chrome extension also works **without** any key, using Chrome's built-in speech and a basic free grammar checker, but it's slower and less accurate.
 
@@ -83,6 +83,7 @@ Prefer not to install? Use the **[portable zip][winzip]**: unzip it anywhere and
 
 1. **Click where you want to type**: a form box, an email, a document.
 2. **Start**: Chrome: tap the SayIt icon or press `Alt+Shift+S`. Desktop: click the floating mic or press `Alt+Shift+D` (`Option+Shift+D` on Mac).
+   On the desktop, the box opens **right where you're typing** (just below the line), so your eyes don't have to leave your work.
 3. **Speak normally.** You can say *"comma"*, *"full stop"*, *"question mark"*, *"new line"* or *"new paragraph"* if you want, but with an AI key you don't have to.
 4. **Finish**: press **Done** or the shortcut again. Your text goes into the box. **Esc** cancels.
 5. **Changed your mind?** In Chrome a small pill appears for 3 seconds: **Original** puts back your exact words, **↶ Undo** removes it. `Ctrl+Z` (`⌘Z`) also works everywhere.
@@ -118,11 +119,12 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 
 **Names and words SayIt should know**: add names and local words (for example *Okidi, Oyam, Makerere*) so they are always spelled right.
 
-**Size**
+**Appearance**
+- **Theme**: Light, Dark, or the same as your computer. Applies to the listening box in both apps (and the desktop mic button).
 - Chrome: the listening box comes in Medium, Large and Extra large; use **A− / A+** on the box any time.
-- Desktop: choose the size of the **mic button** (Small, Medium, Large) and of the **text box** (Medium, Large, Extra large), or use **A− / A+** on the box.
+- Desktop: **drag the top of the box** to move it and **drag its bottom-right corner** to resize it; SayIt remembers the size. Choose where it opens: **where you're typing** (default), **where you last moved it**, or **next to the mic button**. Moving the box never moves the mic button. **A− / A+** changes the text size. The **mic button** comes in Small, Medium and Large.
 
-**Other AI providers**: Groq is the default because it is fast and free, but you can use Google Gemini (free key from AI Studio), OpenAI, Anthropic Claude, OpenRouter, or any OpenAI-compatible service.
+**Other AI providers**: Groq is the default because it is fast and free, but you can use Google Gemini (free key from AI Studio), OpenAI, Anthropic Claude, OpenRouter, or any OpenAI-compatible service for grammar. Each provider's key is saved separately, so you can switch back and forth without pasting keys again.
 
 **Finish by itself**: optionally stop after 2, 3 or 5 seconds of silence, so you don't need to press Done.
 

@@ -24,6 +24,7 @@
   .small { color:var(--muted); font-size:13px; margin:6px 0 0; }
   a { color:var(--accent); cursor:pointer; }
   button { font:inherit; font-weight:600; border:0; border-radius:9px; padding:8px 14px; background:var(--ink); color:#fff; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
   .row { display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap; }
   .status { font-size:13.5px; } .good { color:var(--ok); } .bad { color:#b3261e; }
   ol { margin:0; padding-left:20px; } li { margin:3px 0; }
@@ -62,9 +63,9 @@
   </section>
 
   <section>
-    <h2>Groq key <small style="font-weight:400;color:var(--muted)">(free, needed)</small></h2>
+    <h2>Groq key <small style="font-weight:400;color:var(--muted)">(free, recommended)</small></h2>
     <input type="password" id="groqKey" placeholder="gsk_…" autocomplete="off">
-    <p class="small"><b>Always needed:</b> SayIt uses it to turn your voice into text (Whisper), even if you choose another AI for grammar below. Claude and Gemini can't turn speech into text. <a data-url="https://console.groq.com/keys">Get a free key →</a> Sign in with Google, click "Create API key", paste it here.</p>
+    <p class="small"><b>For speech you need one of:</b> a Groq key (free and fastest), an OpenAI key, or a Google Gemini key (add those under "Other AI" below). Claude can fix grammar but can't listen to audio, so a Claude key alone isn't enough. <a data-url="https://console.groq.com/keys">Get a free key →</a> Sign in with Google, click "Create API key", paste it here.</p>
     <div class="row"><button id="testAi">Test</button><span class="status" id="aiStatus"></span></div>
   </section>
 
@@ -100,25 +101,43 @@
     <label class="f" for="hotkey">Shortcut to start / stop</label>
     <input type="text" id="hotkey" readonly title="Click, then press the keys you want">
     <p class="small" id="hkMsg">Click the box, then press the keys you want (e.g. Ctrl+Shift+Space).</p>
+    <label class="opt"><input type="checkbox" id="showBubble"><div><b>Show the floating mic button</b><span>Turn off if you only use the shortcut.</span></div></label>
+  </section>
+
+  <section>
+    <h2>Appearance</h2>
+    <label class="f">Theme</label>
+    <div class="sizes">
+      <label><input type="radio" name="theme" value="system"> Same as my computer</label>
+      <label><input type="radio" name="theme" value="light"> Light</label>
+      <label><input type="radio" name="theme" value="dark"> Dark</label>
+    </div>
+    <label class="f">Where the box opens</label>
+    <div class="sizes">
+      <label><input type="radio" name="panelPlace" value="typing"> Where I'm typing</label>
+      <label><input type="radio" name="panelPlace" value="remember"> Where I last moved it</label>
+      <label><input type="radio" name="panelPlace" value="button"> Next to the mic button</label>
+    </div>
+    <p class="small">Drag the top of the box to move it, and the bottom-right corner to make it bigger or smaller. SayIt remembers the size.</p>
+    <div class="row"><button class="ghost" id="resetPanel">Reset the box size</button></div>
+    <label class="f">Text size in the box</label>
+    <div class="sizes">
+      <label><input type="radio" name="textSize" value="s"> Small</label>
+      <label><input type="radio" name="textSize" value="m"> Medium</label>
+      <label><input type="radio" name="textSize" value="l"> Large</label>
+      <label><input type="radio" name="textSize" value="xl"> Extra large</label>
+    </div>
     <label class="f">Size of the mic button</label>
     <div class="sizes">
       <label><input type="radio" name="bubbleSize" value="s"> Small</label>
       <label><input type="radio" name="bubbleSize" value="m"> Medium</label>
       <label><input type="radio" name="bubbleSize" value="l"> Large</label>
     </div>
-    <label class="f">Size of the text box while you speak</label>
-    <div class="sizes">
-      <label><input type="radio" name="panelSize" value="m"> Medium</label>
-      <label><input type="radio" name="panelSize" value="l"> Large</label>
-      <label><input type="radio" name="panelSize" value="xl"> Extra large</label>
-    </div>
-    <p class="small">You can also use the A− / A+ buttons on the box while you speak.</p>
-    <label class="opt"><input type="checkbox" id="showBubble"><div><b>Show the floating mic button</b><span>Turn off if you only use the shortcut.</span></div></label>
   </section>
 
   <section>
     <h2>Other AI for grammar <small style="font-weight:400;color:var(--muted)">(optional)</small></h2>
-    <p class="small" style="margin-top:0">Only changes who fixes the grammar. Speech still uses your Groq key above. Groq is usually the fastest (about 0.5 s); Claude is about 0.8 s.</p>
+    <p class="small" style="margin-top:0">Choose who fixes the grammar, and paste that provider's key. Each provider's key is kept separately, so you can switch back and forth. Groq is usually the fastest (about 0.5 s); Claude is about 0.8 s. A Gemini or OpenAI key here can also be used for speech if you don't have a Groq key.</p>
     <label class="f" for="provider">Grammar provider</label>
     <select id="provider"></select>
     <div id="otherKeyBox">

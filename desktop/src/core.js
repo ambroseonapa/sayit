@@ -28,8 +28,9 @@ function vocabList(s) {
 const workingModel = {}; // remember which model worked, so we don't retry dead ones
 async function transcribe(wav, s, prompt) {
   const keys = s.keys || {};
-  const which = keys.groq ? "groq" : keys.openai ? "openai" : null;
-  if (!which) throw new Error("Add a Groq key in SayIt settings (it's free)");
+  const which = keys.groq ? "groq" : keys.openai ? "openai" : keys.gemini ? "gemini" : null;
+  if (!which) throw new Error("Add a Groq key in SayIt settings (it's free). Claude can't listen to audio");
+  if (which === "gemini") return transcribeGemini(wav, s, prompt);
   const models = workingModel[which] ? [workingModel[which]] : WHISPER[which].models;
   const vocab = vocabList(s);
   let lastErr;
@@ -53,6 +54,38 @@ async function transcribe(wav, s, prompt) {
     workingModel[which] = model;
     const data = await r.json();
     return cleanWhisper(data.text || "");
+  }
+  throw new Error(lastErr || "speech service error");
+}
+
+// Gemini can also turn speech into text (slower than Groq, but works with only a Gemini key).
+const GEMINI_AUDIO_MODELS = ["gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash"];
+async function transcribeGemini(wav, s, prompt) {
+  const vocab = vocabList(s);
+  const instr = "Transcribe this audio exactly as spoken, word for word, in " + ((s.lang || "en").startsWith("en") ? "English" : s.lang) +
+    ". Add normal punctuation. Output only the words that were said, nothing else. If nobody speaks, output nothing." +
+    (vocab.length ? " These names may appear: " + vocab.join(", ") + "." : "") +
+    (prompt ? " For context, the speaker just said: \"" + prompt.slice(-200) + "\"" : "");
+  const models = workingModel.gemini ? [workingModel.gemini] : GEMINI_AUDIO_MODELS;
+  let lastErr;
+  for (const model of models) {
+    let r;
+    try {
+      r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+        method: "POST", signal: withTimeout(20000),
+        headers: { "x-goog-api-key": s.keys.gemini, "content-type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: instr }, { inline_data: { mime_type: "audio/wav", data: Buffer.from(wav).toString("base64") } }] }],
+          generationConfig: { temperature: 0 }
+        })
+      });
+    } catch (e) { throw new Error(e.name === "AbortError" ? "speech service took too long" : "couldn't reach Google Gemini"); }
+    if (r.status === 404 || r.status === 400) { lastErr = await errText(r); continue; }
+    if (!r.ok) throw new Error(await errText(r));
+    workingModel.gemini = model;
+    const data = await r.json();
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    return cleanWhisper(parts.map((p) => p.text || "").join(" "));
   }
   throw new Error(lastErr || "speech service error");
 }
@@ -139,4 +172,5 @@ async function callAIRaw(ai, system, text) {
   return out;
 }
 
-module.exports = { transcribe, polish, aiConfig, cleanWhisper };
+const speechKey = (s) => !!(s.keys && (s.keys.groq || s.keys.openai || s.keys.gemini));
+module.exports = { transcribe, polish, aiConfig, cleanWhisper, speechKey };
