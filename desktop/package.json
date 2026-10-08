@@ -10,7 +10,7 @@
     "sync-shared": "node scripts/sync-shared.js",
     "start": "npm run sync-shared && electron .",
     "dist:win": "npm run sync-shared && electron-builder --win nsis zip --x64 --publish never",
-    "dist:mac": "npm run sync-shared && electron-builder --mac dir --arm64 --x64 --publish never"
+    "dist:mac": "npm run sync-shared && electron-builder --mac dir --arm64 --publish never && electron-builder --mac dir --x64 --publish never"
   },
   "dependencies": {
     "koffi": "^2.9.0"
