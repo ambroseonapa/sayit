@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("sayit", {
   panelResize: (dx, dy) => ipcRenderer.send("panel-resize", { dx, dy }),
   panelResizeEnd: () => ipcRenderer.send("panel-resize-end"),
   resetPanel: () => ipcRenderer.invoke("panel:reset"),
+  copy: (t) => ipcRenderer.invoke("copy", t),
   drag: (dx, dy) => ipcRenderer.send("drag", { dx, dy }),
   dragEnd: () => ipcRenderer.send("drag-end"),
   openSettings: () => ipcRenderer.send("open-settings"),

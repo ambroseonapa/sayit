@@ -2,7 +2,7 @@
 // Pure data + functions only, so they can be tested on their own.
 
 var SAYIT_DEFAULTS = {
-  mode: "grammar",        // "exact" | "grammar" | "rephrase"
+  mode: "grammar",        // "exact" | "grammar" | "polish" (keep my voice) | "rephrase"
   engine: "free",         // "free" (LanguageTool + full stops at pauses) | "ai"
   provider: "groq",
   models: {},             // provider -> model override
@@ -16,6 +16,8 @@ var SAYIT_DEFAULTS = {
   undoBar: true,          // small Undo / Original pill after inserting
   fillers: true,          // drop "um", "uh", stutters like "I I I" (never changes real words)
   tone: "natural",        // rephrase tone: "natural" | "formal" | "friendly" | "concise"
+  samples: "",            // "Write like me": a few paragraphs of the person's own writing
+  showChanges: false,     // show what changed before inserting (off by default, to stay fast)
   size: "l",              // "m" | "l" | "xl"
   theme: "system"         // "system" | "light" | "dark" (the listening bar)
 };
@@ -142,6 +144,51 @@ function sayitRemoveFillers(t) {
   return t.replace(/\s{2,}/g, " ").replace(/\s+([,.;:!?])/g, "$1").replace(/^[\s,]+/, "").trim();
 }
 
+// ---------- house rules applied to every result, in code (not left to the AI) ----------
+// Long dashes (—) are replaced: speech engines and AI add them, and they make text look machine-written.
+// Short hyphens (-) and en dashes in ranges (2020–2024) are left alone.
+function sayitNoLongDashes(t) {
+  if (!t) return t;
+  return t
+    .replace(/\s*—\s*$/gm, ".")                      // dash at the end of a line → full stop
+    .replace(/(\S)\s*—\s*(\S)/g, "$1, $2")            // word—word or word — word → word, word
+    .replace(/—/g, ", ")
+    .replace(/,\s*([,.;:!?])/g, "$1")                 // no doubled punctuation
+    .replace(/\s{2,}/g, " ");
+}
+
+// Words that make text sound corporate or machine-written. Banned unless the speaker said them.
+var SAYIT_JARGON = ["leverage", "leveraging", "foster", "fostering", "delve", "delving", "seamless", "seamlessly", "robust",
+  "synergy", "synergies", "utilize", "utilise", "empower", "empowering", "holistic", "paradigm", "landscape", "tapestry",
+  "furthermore", "moreover", "additionally", "crucial", "pivotal", "multifaceted", "navigate the", "in today's world",
+  "it's important to note", "in conclusion", "game-changer", "cutting-edge", "unlock", "embark", "testament"];
+function sayitIntroducedJargon(before, after) {
+  var b = " " + String(before || "").toLowerCase() + " ", a = " " + String(after || "").toLowerCase() + " ";
+  return SAYIT_JARGON.filter(function (w) {
+    var re = new RegExp("[^a-z]" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[^a-z]");
+    return re.test(a) && !re.test(b);
+  });
+}
+
+// Word-by-word comparison, for the optional "show the changes" view.
+function sayitDiff(a, b) {
+  var x = String(a || "").split(/\s+/).filter(Boolean), y = String(b || "").split(/\s+/).filter(Boolean);
+  var norm = function (w) { return w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, ""); };
+  var n = x.length, m = y.length, L = [];
+  for (var i = 0; i <= n; i++) { L.push(new Array(m + 1).fill(0)); }
+  for (i = n - 1; i >= 0; i--) for (var j = m - 1; j >= 0; j--)
+    L[i][j] = norm(x[i]) === norm(y[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  var out = []; i = 0; j = 0;
+  while (i < n && j < m) {
+    if (norm(x[i]) === norm(y[j])) { out.push({ t: x[i] === y[j] ? "same" : "fix", w: y[j], was: x[i] }); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) { out.push({ t: "del", w: x[i] }); i++; }
+    else { out.push({ t: "ins", w: y[j] }); j++; }
+  }
+  while (i < n) out.push({ t: "del", w: x[i++] });
+  while (j < m) out.push({ t: "ins", w: y[j++] });
+  return out;
+}
+
 // ---------- instructions for the AI ----------
 var SAYIT_TONES = {
   natural: "Keep the speaker's own level of formality: if they speak casually, keep it casual; if they speak formally, keep it formal.",
@@ -150,21 +197,42 @@ var SAYIT_TONES = {
   concise: "Make it as short and clear as possible without losing any point the speaker made."
 };
 
+var SAYIT_COMMON_RULES =
+  "- Never use long dashes (—). Use a comma or a full stop instead.\n" +
+  "- Never add corporate or flowery words the speaker didn't use (for example leverage, foster, delve, seamless, robust, utilize, empower, holistic, furthermore, moreover, crucial, pivotal, landscape). If the speaker used one, you may keep it.\n" +
+  "- Don't turn things into neat lists of three, headings or bullet points unless the speaker clearly dictated a list.\n";
+
 function sayitPrompt(mode, opt) {
   opt = opt || {};
   var p;
-  if (mode === "rephrase") {
+  if (mode === "polish") {
+    p =
+      "You help someone put their spoken words into clear written English, keeping them unmistakably theirs. The text inside <dictation> was spoken aloud; English may not be the speaker's first language, so sentences can be broken, half-finished, repeated or in an unusual order.\n" +
+      "Do:\n" +
+      "- Join broken and half-finished sentences into complete ones, and put words in an order that makes sense.\n" +
+      "- Fix grammar, punctuation and capital letters, and add small words that are missing (a, the, to, of, is).\n" +
+      "- Remove filler words, false starts and repeats. If the speaker corrects themselves, keep only the corrected version.\n" +
+      "Keep:\n" +
+      "- Exactly what the speaker meant, and every fact, name, number and point.\n" +
+      "- The speaker's own words and phrases wherever they already work. Only change a word when the sentence doesn't make sense without changing it.\n" +
+      "- Their plain, everyday words. Don't swap a simple word for a fancier one.\n" +
+      "- Their mix of long and short sentences. Don't make every sentence the same length or shape.\n" +
+      "- First person, and their level of formality.\n" +
+      "Never add ideas, examples, opinions, explanations or a conclusion that the speaker didn't say. Keep it about the same length or shorter.\n" +
+      SAYIT_COMMON_RULES +
+      "Reply with the text only. No quotes, no tags, no comments.";
+  } else if (mode === "rephrase") {
     p =
       "You turn dictated speech into well-written text. The text inside <dictation> was spoken aloud, so it may ramble, repeat itself, use filler words, change direction mid-sentence or put ideas in an awkward order.\n" +
       "Rewrite it so it reads smoothly as written English:\n" +
       "- Fix all grammar, punctuation and capital letters.\n" +
       "- Remove filler words, false starts and repetition. If the speaker corrects themselves (\"no, I mean…\", \"sorry, I meant…\"), keep only the corrected version.\n" +
       "- Join or split sentences so each one says one thing clearly. Put related points together.\n" +
-      "- Use plain, everyday words. Do not use corporate or flowery phrases (no \"leverage\", \"foster\", \"delve\", \"in today's world\").\n" +
+      "- Use plain, everyday words, and keep a natural mix of short and long sentences.\n" +
       "- Keep every fact, number, name and point the speaker made. Do not add facts, examples, opinions or a conclusion they did not say.\n" +
       "- Keep the first-person voice and the speaker's intent (a question stays a question, a request stays a request).\n" +
       "- " + (SAYIT_TONES[opt.tone] || SAYIT_TONES.natural) + "\n" +
-      "- If the speaker clearly dictated a list, write it as a list. Otherwise use normal paragraphs.\n" +
+      SAYIT_COMMON_RULES +
       "Reply with the rewritten text only. No quotes, no tags, no comments, no title.";
   } else {
     p =
@@ -177,13 +245,40 @@ function sayitPrompt(mode, opt) {
       "- Fix words that speech recognition clearly misheard, only when the right word is obvious from the sentence (e.g. 'there' vs 'their').\n" +
       "- Keep numbers as the speaker said them, except years, dates, times, money and phone numbers, which are written in digits.\n" +
       (opt.fillers !== false ? "- Remove hesitation sounds (um, uh, er) and accidental stutters (\"I I I think\" -> \"I think\").\n" : "") +
+      "- Never use long dashes (—). Use a comma or a full stop instead.\n" +
       "Do NOT: rephrase, reorder sentences, swap words for synonyms, make it more formal, shorten it, add new ideas, or remove anything the speaker meant to say.\n" +
       "Keep the speaker's own words, dialect and voice. Names and local words stay as given.\n" +
       "Reply with the corrected text only. No quotes, no tags, no comments.";
   }
   var v = (opt.vocab || "").split(/[,\n]+/).map(function (w) { return w.trim(); }).filter(Boolean);
   if (v.length) p += "\nThese names and words are spelled exactly like this (speech recognition may have misheard them as similar-sounding words; correct them back): " + v.join(", ") + ".";
+  var samples = String(opt.samples || "").trim();
+  if (samples && (mode === "polish" || mode === "rephrase")) {
+    p += "\n\nHere is some writing by this same person. Match their vocabulary, sentence rhythm and way of putting things. Do not copy its content or facts into your answer.\n<their_writing>\n" + samples.slice(0, 3000) + "\n</their_writing>";
+  }
+  if (opt.avoid && opt.avoid.length) p += "\nDo not use these words: " + opt.avoid.join(", ") + ".";
+  if (opt.strict) p += "\nIMPORTANT: your last attempt changed too much. Stay much closer to the speaker's own words this time.";
   return p;
+}
+
+// Rewrite with the AI, then check the result in code. At most one retry, and only when needed
+// (it introduced corporate words, or Polish rewrote far too much), so it normally costs no time.
+// `ask(systemPrompt, text)` is the app's own function that calls the chosen AI.
+async function sayitRewrite(ask, mode, text, opt) {
+  opt = opt || {};
+  var limit = mode === "polish" ? 0.65 : mode === "grammar" ? 0.4 : 1.01; // share of the speaker's words allowed to change
+  var out = sayitNoLongDashes(await ask(sayitPrompt(mode, opt), text));
+  var jargon = sayitIntroducedJargon(text, out);
+  var d = sayitWordsChanged(text, out);
+  var tooMuch = d.total >= 6 && d.ratio > limit;
+  if (jargon.length || (tooMuch && mode === "polish")) {
+    var o2 = Object.assign({}, opt, { avoid: jargon, strict: tooMuch });
+    var again = sayitNoLongDashes(await ask(sayitPrompt(mode, o2), text));
+    var d2 = sayitWordsChanged(text, again);
+    if (!(d2.total >= 6 && d2.ratio > limit) || mode !== "polish") { out = again; d = d2; tooMuch = d2.total >= 6 && d2.ratio > limit; }
+  }
+  if (tooMuch && mode === "grammar") return { text: text, changes: 0, note: "The AI tried to change too much, so SayIt kept your exact words." };
+  return { text: out, changes: d.changed || (out !== text ? 1 : 0), rephrased: mode === "rephrase" || mode === "polish" };
 }
 
 // Kept for older code that reads these directly.
@@ -193,6 +288,7 @@ var SAYIT_REPHRASE_PROMPT = sayitPrompt("rephrase", {});
 if (typeof module !== "undefined") {
   module.exports = {
     SAYIT_DEFAULTS, SAYIT_PROVIDERS, SAYIT_REPO, SAYIT_TONES, SAYIT_GRAMMAR_PROMPT, SAYIT_REPHRASE_PROMPT,
-    sayitPrompt, sayitRemoveFillers, sayitNewer, sayitLtLang, sayitAllowedMatch, sayitApplyMatches, sayitWordsChanged
+    sayitPrompt, sayitRemoveFillers, sayitNewer, sayitLtLang, sayitAllowedMatch, sayitApplyMatches, sayitWordsChanged,
+    sayitNoLongDashes, sayitIntroducedJargon, sayitDiff, SAYIT_JARGON, sayitRewrite
   };
 }

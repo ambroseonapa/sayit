@@ -86,7 +86,8 @@ Prefer not to install? Use the **[portable zip][winzip]**: unzip it anywhere and
    On the desktop, the box opens **right where you're typing** (just below the line), so your eyes don't have to leave your work.
 3. **Speak normally.** You can say *"comma"*, *"full stop"*, *"question mark"*, *"new line"* or *"new paragraph"* if you want, but with an AI key you don't have to.
 4. **Finish**: press **Done** or the shortcut again. Your text goes into the box. **Esc** cancels.
-5. **Changed your mind?** In Chrome a small pill appears for 3 seconds: **Original** puts back your exact words, **↶ Undo** removes it. `Ctrl+Z` (`⌘Z`) also works everywhere.
+5. **Need the text somewhere else?** Press **Copy** in the box to copy what you've said so far, then paste it anywhere.
+6. **Changed your mind?** In Chrome a small pill appears for 3 seconds: **Original** puts back your exact words, **↶ Undo** removes it. `Ctrl+Z` (`⌘Z`) also works everywhere.
 
 There is no time limit. Talk for as long as you like; if the internet drops for a moment, SayIt reconnects and keeps listening.
 
@@ -109,7 +110,11 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 **What should happen to your words?**
 - **Exact words**: types exactly what you said.
 - **Fix grammar** (recommended): full stops, commas, capitals, question marks and grammar mistakes (*they was → they were*). It never swaps your words for "better" ones or changes your meaning. If the AI ever changes too much, SayIt keeps your original.
+- **Polish (keeps my voice)**: for when you speak in pieces, or English is your second language. It joins broken or half-finished sentences so they make sense, fixes the grammar and adds missing small words (*the*, *a*, *to*, *is*). It keeps your meaning and your own words, and does not make you sound like someone else.
 - **Rephrase**: rewrites it to read smoothly: removes rambling and repetition, keeps every fact. Pick a style: **Natural**, **Formal** (applications, reports), **Friendly** or **Short and clear**.
+- **Write like me** (optional): paste one or two paragraphs you wrote yourself. Polish and Rephrase follow your style from them, so the result still sounds like you.
+- **Show the changes before inserting** (off by default): see what was changed (crossed out in red, new words in green) and choose **Insert** or **Use my words**. It's off by default because it adds a step.
+- In every mode SayIt never adds long dashes (—), and never adds business words like *leverage*, *foster* or *synergy* unless you said them yourself.
 - **Remove "um", "uh" and stutters**: *"um so I I I think"* → *"so I think"*. Real words are never removed.
 
 **Speech (Chrome extension)**

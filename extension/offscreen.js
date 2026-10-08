@@ -11,6 +11,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg.type === "start") { start().then(reply, (e) => reply({ error: e.name === "NotAllowedError" || e.name === "SecurityError" ? "mic-permission" : e.message || String(e) })); return true; }
   if (msg.type === "stop") { stop(false).then(reply); return true; }
   if (msg.type === "cancel") { stop(true).then(reply); return true; }
+  if (msg.type === "copy") { // backup way to copy when the page blocks the clipboard
+    try { const ta = document.createElement("textarea"); ta.value = msg.text; document.body.appendChild(ta); ta.select(); const ok = document.execCommand("copy"); ta.remove(); reply(ok); } catch { reply(false); }
+    return;
+  }
 });
 
 function wav(list) {

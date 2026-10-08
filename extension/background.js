@@ -86,6 +86,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     return true;
   }
   if (msg && msg.type === "capture-end") { cap = null; }
+  if (msg && msg.type === "copy") {
+    ensureOffscreen().then(() => chrome.runtime.sendMessage({ target: "offscreen", type: "copy", text: msg.text })).then((r) => reply(!!r), () => reply(false));
+    return true;
+  }
   if (msg && msg.type === "openMicPage") { chrome.tabs.create({ url: chrome.runtime.getURL("mic.html") }); }
   if (msg && msg.type === "openOptions") chrome.runtime.openOptionsPage();
   if (msg && msg.type === "checkUpdate") { checkUpdate(true).then(() => chrome.storage.local.get("update")).then((u) => reply(u.update || null)); return true; }
@@ -122,25 +126,20 @@ async function warm() {
 async function polish(text, mode) {
   const s = await getSettings();
   mode = mode || s.mode;
-  if (mode === "exact") return { text, changes: 0 };
+  if (mode === "exact") return { text: sayitNoLongDashes(text), changes: 0 };
   const ai = aiConfig(s);
+  const ask = (system, t) => callAI(ai, system, t);
 
-  if (mode === "rephrase") {
-    if (!ai) return { text, changes: 0, note: "Rephrase needs an AI key (SayIt settings). Inserted your exact words." };
-    const out = await callAI(ai, sayitPrompt("rephrase", s), text);
-    return { text: out, changes: sayitWordsChanged(text, out).changed, rephrased: true };
+  if (mode === "rephrase" || mode === "polish") {
+    if (!ai) return { text: sayitNoLongDashes(text), changes: 0, note: (mode === "polish" ? "Polish" : "Rephrase") + " needs an AI key (SayIt settings). Inserted your words." };
+    return await sayitRewrite(ask, mode, s.fillers ? sayitRemoveFillers(text) : text, s);
   }
-
   if (s.engine === "ai" && ai) {
-    const out = await callAI(ai, sayitPrompt("grammar", s), text);
-    const d = sayitWordsChanged(text, out);
-    // Safety net: grammar mode must not rewrite you.
-    if (d.total >= 6 && d.ratio > 0.4) {
-      return { text, changes: 0, note: "The AI tried to change too much, so SayIt kept your exact words." };
-    }
-    return { text: out, changes: d.changed || (out !== text ? 1 : 0), ai: true };
+    const r = await sayitRewrite(ask, "grammar", text, s);
+    return { ...r, rephrased: false, ai: true };
   }
-  return await languageTool(s.fillers ? sayitRemoveFillers(text) : text, s.lang);
+  const r = await languageTool(s.fillers ? sayitRemoveFillers(text) : text, s.lang);
+  return { ...r, text: sayitNoLongDashes(r.text) };
 }
 
 function withTimeout(ms) {

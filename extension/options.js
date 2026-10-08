@@ -38,6 +38,8 @@ async function load() {
   $("undoBar").checked = S.undoBar;
   $("fillers").checked = S.fillers;
   $("tone").value = S.tone || "natural";
+  $("samples").value = S.samples || "";
+  $("showChanges").checked = !!S.showChanges;
   $("ver").textContent = "v" + chrome.runtime.getManifest().version;
   const { update } = await chrome.storage.local.get("update");
   showUpdate(update);
@@ -59,6 +61,8 @@ document.querySelectorAll("input[name=speech]").forEach((r) => r.addEventListene
 $("vocab").addEventListener("change", () => setSync({ vocab: $("vocab").value.trim() }));
 $("autoStop").addEventListener("change", () => setSync({ autoStop: Number($("autoStop").value) }));
 $("tone").addEventListener("change", () => setSync({ tone: $("tone").value }));
+$("samples").addEventListener("change", () => setSync({ samples: $("samples").value.trim().slice(0, 3000) }));
+$("showChanges").addEventListener("change", () => setSync({ showChanges: $("showChanges").checked }));
 for (const id of ["spokenPunct", "autoPunct", "undoBar", "fillers"]) $(id).addEventListener("change", () => setSync({ [id]: $(id).checked }));
 
 $("provider").addEventListener("change", async () => { await saveKey(); setSync({ provider: $("provider").value }); showProvider(); });

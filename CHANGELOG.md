@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0
+**Both**
+- New mode: **Polish (keeps my voice)**. Joins broken or half-finished English, fixes grammar and adds missing small words, while keeping your meaning and your own words.
+- **Write like me**: paste a paragraph or two you wrote yourself, and Polish and Rephrase follow your style.
+- **Show the changes before inserting** (in Settings, off by default): see what was changed and choose Insert or Use my words.
+- **Copy button** in the box: copy what you've said so far and paste it anywhere.
+- No more long dashes (—) in the text.
+- SayIt no longer adds business words like *leverage*, *foster* or *synergy* unless you said them. If the AI adds one, SayIt asks again.
+- In Fix grammar mode, if the AI changes too many of your words, SayIt keeps what you said.
+
+**Chrome extension**
+- Fixed: copying could fail silently on some websites; SayIt now tries three ways.
+
+
 ## 0.7.0
 **Desktop app**
 - **The box opens where you're typing.** On Windows SayIt finds the text cursor (Word, Notepad, Outlook and most apps); otherwise it uses where you last clicked. Choose "where I last moved it" or "next to the mic button" instead if you prefer.

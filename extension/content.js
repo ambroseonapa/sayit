@@ -4,11 +4,12 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const DEFAULTS = {
     mode: "grammar", engine: "free", lang: "en-GB", spokenPunct: true, autoPunct: true, undoBar: true,
-    speech: "groq", autoStop: 0, size: "l", theme: "system"
+    speech: "groq", autoStop: 0, size: "l", theme: "system", showChanges: false
   };
   const MODES = {
     exact: { label: "Exact words", hint: "types exactly what you say" },
     grammar: { label: "Fix grammar", hint: "fixes grammar and punctuation, keeps your words" },
+    polish: { label: "Polish", hint: "puts your words together clearly, keeps your voice (AI)" },
     rephrase: { label: "Rephrase", hint: "rewrites it clearly (AI)" }
   };
   const SIZES = ["m", "l", "xl"];
@@ -211,6 +212,10 @@
     .link { background: none; border: 0; color: var(--link); font: inherit; font-weight: 650; cursor: pointer; padding: .15em .3em; white-space: nowrap; }
     .link:hover { color: var(--fg); text-decoration: underline; }
     .err { border-left: 4px solid #ff5a3c; }
+    .del { color: #d9534f; text-decoration: line-through; opacity: .8; }
+    .ins { color: #2e9e5b; text-decoration: underline; text-decoration-color: rgba(46,158,91,.5); text-underline-offset: 3px; }
+    :host(.dark) .ins { color: #7fd99a; }
+    :host(.dark) .del { color: #ff8f7a; }
     .pillbar { padding: .4em .5em .4em .85em; gap: .35em; font-size: .85em; border-radius: 999px; bottom: 20px; }
     .pillbar .ok { color: var(--ok); font-weight: 700; }
     .pillbar .link { font-weight: 600; padding: .2em .55em; border-radius: 999px; }
@@ -273,7 +278,8 @@
       const size = el("span", "size");
       size.append(btn("", "A−", () => resize(-1), "Smaller"), btn("", "A+", () => resize(1), "Bigger"));
       row.append(el("span", "dot"), el("span", "status"), el("span", "chip"), size,
-        btn("pill mode", "", cycleMode), btn("act cancel", "Cancel", () => stop(true)), btn("act done", "Done", () => stop(false)));
+        btn("pill mode", "", cycleMode), btn("pill copy", "Copy", copyNow, "Copy the text so far"),
+        btn("act cancel", "Cancel", () => stop(true)), btn("act done", "Done", () => stop(false)));
       bar.append(row, el("div", "text"));
       root.appendChild(bar);
     }
@@ -335,7 +341,7 @@
     settings.size = SIZES[i]; save({ size: settings.size }); applySize();
   }
   function cycleMode() {
-    const order = ["exact", "grammar", "rephrase"];
+    const order = ["exact", "grammar", "polish", "rephrase"];
     settings.mode = order[(order.indexOf(settings.mode) + 1) % order.length];
     save({ mode: settings.mode });
     spec = null; scheduleSpec();
@@ -412,6 +418,67 @@
     return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = rej; fr.readAsDataURL(b); });
   }
 
+  // ---------- copy the text ----------
+  function currentText() {
+    if (useGroq) return prepare(gTexts(), { fromWhisper: true });
+    return prepare(interim ? [...segments, interim] : segments);
+  }
+  async function copyText(t) {
+    try { await navigator.clipboard.writeText(t); return true; } catch {}
+    try { if (await chrome.runtime.sendMessage({ type: "copy", text: t })) return true; } catch {}
+    try { // last try: the old way, inside the page
+      const ta = document.createElement("textarea"); ta.value = t; (document.body || document.documentElement).appendChild(ta);
+      ta.select(); const ok = document.execCommand("copy"); ta.remove(); return ok;
+    } catch { return false; }
+  }
+  async function copyNow() {
+    const t = currentText();
+    const b = root && root.querySelector(".bar .copy");
+    if (!t) { if (b) { b.textContent = "Nothing yet"; setTimeout(() => (b.textContent = "Copy"), 1200); } return; }
+    const ok = await copyText(t);
+    if (b) { b.textContent = ok ? "Copied ✓" : "Couldn't copy"; setTimeout(() => (b.textContent = "Copy"), 1400); }
+  }
+
+  // ---------- "show the changes" view ----------
+  let reviewDone = null;
+  function review(before, after) {
+    return new Promise((resolve) => {
+      reviewDone = (v) => { reviewDone = null; resolve(v); };
+      ensureRoot(); clearUI();
+      const bar = el("div", "bar");
+      const row = el("div", "row");
+      row.append(el("span", "status", "Check the changes"),
+        btn("pill", "Copy", async (e) => { await copyText(after); }, "Copy the new text"),
+        btn("act cancel", "Cancel", () => reviewDone && reviewDone(null)),
+        btn("pill", "Use my words", () => reviewDone && reviewDone(before), "Insert what you said, without the changes"),
+        btn("act done", "Insert", () => reviewDone && reviewDone(after)));
+      const t = el("div", "text");
+      for (const d of sayitDiffLocal(before, after)) {
+        if (d.t === "del") t.append(el("span", "del", d.w), " ");
+        else if (d.t === "ins" || d.t === "fix") t.append(el("span", "ins", d.w), " ");
+        else t.append(d.w + " ");
+      }
+      bar.append(row, t);
+      root.appendChild(bar);
+    });
+  }
+  // same word-by-word comparison as shared.js (kept here because this script runs inside web pages)
+  function sayitDiffLocal(a, b) {
+    const x = String(a || "").split(/\s+/).filter(Boolean), y = String(b || "").split(/\s+/).filter(Boolean);
+    const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+    const n = x.length, m = y.length, L = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = norm(x[i]) === norm(y[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    const out = []; let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (norm(x[i]) === norm(y[j])) { out.push({ t: x[i] === y[j] ? "same" : "fix", w: y[j] }); i++; j++; }
+      else if (L[i + 1][j] >= L[i][j + 1]) out.push({ t: "del", w: x[i++] });
+      else out.push({ t: "ins", w: y[j++] });
+    }
+    while (i < n) out.push({ t: "del", w: x[i++] });
+    while (j < m) out.push({ t: "ins", w: y[j++] });
+    return out;
+  }
+
   // ---------- recording ----------
   const ERRORS = {
     "not-allowed": "Microphone is blocked for this site. Click the icon on the left of the address bar, allow Microphone, then try again.",
@@ -422,6 +489,7 @@
   };
 
   function reset() { // back to a clean state, whatever happened
+    if (reviewDone) reviewDone(null);
     clearTimeout(stopTimer); clearTimeout(specTimer); clearInterval(silenceTimer); clearTimeout(watchdog);
     try { rec && rec.abort(); } catch {}
     if (recorder && recorder.state !== "inactive") { try { recorder.stop(); } catch {} }
@@ -591,15 +659,23 @@
       const mode = settings.mode;
       let res = { text: raw, changes: 0 };
       if (mode !== "exact") {
-        setStatus(mode === "rephrase" ? "Rephrasing…" : "Fixing grammar…");
+        setStatus(mode === "rephrase" ? "Rephrasing…" : mode === "polish" ? "Polishing…" : "Fixing grammar…");
         try {
           const p = spec && spec.text === raw ? spec.promise : polishReq(raw);
-          res = await timeout(p, mode === "rephrase" ? 15000 : 8000);
+          res = await timeout(p, mode === "rephrase" || mode === "polish" ? 20000 : 8000);
         } catch (err) {
           res = { text: raw, changes: 0, note: "Grammar check failed (" + err.message + "). Inserted your words." };
         }
       }
       if (note && !res.note) res.note = note;
+
+      // Optional (Settings → "Show the changes"): see what changed and choose before it goes in.
+      if (settings.showChanges && mode !== "exact" && !res.note && res.text.trim() !== raw.trim()) {
+        clearTimeout(watchdog);
+        const pick = await review(raw, res.text);
+        if (pick === null) { reset(); clearUI(); return; }
+        res = { ...res, text: pick };
+      }
 
       const before = textBeforeCaret();
       const prev = before.slice(-1);
@@ -665,13 +741,6 @@
       if (ev.defaultPrevented) return true; // Docs took it
     } catch {}
     try { return elx.ownerDocument.execCommand("insertText", false, text); } catch { return false; }
-  }
-  function copyText(text) {
-    try { navigator.clipboard.writeText(text); return; } catch {}
-    try {
-      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
-      ta.select(); document.execCommand("copy"); ta.remove();
-    } catch {}
   }
 
   function toggle() {

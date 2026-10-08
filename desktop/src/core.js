@@ -93,7 +93,7 @@ async function transcribeGemini(wav, s, prompt) {
 // Whisper sometimes "hears" these in silence or noise.
 const FAKE = /^(thank(s| you)( so much)?( for watching| for listening)?[.!]?|you[.!]?|bye[.!]?|\.+|subtitles by.*|.*amara\.org.*)$/i;
 function cleanWhisper(t) {
-  t = t.trim();
+  t = S.sayitNoLongDashes(String(t || "").trim());
   if (!t || FAKE.test(t)) return "";
   return t;
 }
@@ -112,18 +112,14 @@ function aiConfig(s) {
 
 async function polish(text, s, mode) {
   mode = mode || s.mode;
-  if (mode === "exact" || !text) return { text, changes: 0 };
+  if (!text) return { text, changes: 0 };
+  if (mode === "exact") return { text: S.sayitNoLongDashes(text), changes: 0 };
   if (s.fillers) text = S.sayitRemoveFillers(text);
   const ai = aiConfig(s);
-  if (!ai) return { text, changes: 0 }; // Whisper already punctuates; without an AI key we keep its text
-  if (mode === "rephrase") {
-    const out = await callAI(ai, S.sayitPrompt("rephrase", s), text);
-    return { text: out, rephrased: true };
-  }
-  const out = await callAI(ai, S.sayitPrompt("grammar", s), text);
-  const d = S.sayitWordsChanged(text, out);
-  if (d.total >= 6 && d.ratio > 0.4) return { text, changes: 0, note: "The AI tried to change too much, so SayIt kept your words." };
-  return { text: out, changes: d.changed };
+  if (!ai) return { text: S.sayitNoLongDashes(text), changes: 0 }; // Whisper already punctuates; without an AI key we keep its text
+  const r = await S.sayitRewrite((system, t) => callAI(ai, system, t), mode === "polish" || mode === "rephrase" ? mode : "grammar", text, s);
+  if (mode !== "polish" && mode !== "rephrase") r.rephrased = false;
+  return r;
 }
 
 async function callAI(ai, system, text) {

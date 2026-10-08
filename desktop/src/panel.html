@@ -49,6 +49,10 @@
   .foot { margin-top:4px; font-size:11.5px; color:var(--muted); display:flex; justify-content:space-between; gap:8px; padding-right:14px; }
   .foot a { color:var(--link); cursor:pointer; }
 
+  #text .del { color:#d9534f; text-decoration:line-through; opacity:.8; }
+  #text .ins { color:#2e9e5b; text-decoration:underline; text-decoration-color:rgba(46,158,91,.5); text-underline-offset:3px; }
+  body.dark #text .del { color:#ff8f7a; } body.dark #text .ins { color:#7fd99a; }
+  [hidden] { display:none !important; }
   /* drag this corner to resize */
   #grip { position:absolute; right:2px; bottom:2px; width:16px; height:16px; cursor:nwse-resize; opacity:.55; }
   #grip::before { content:""; position:absolute; right:3px; bottom:3px; width:9px; height:9px;
@@ -66,8 +70,10 @@
     <div id="text"></div>
     <div class="bottom">
       <button class="pill" id="mode" title="Change what happens to your words"></button>
+      <button class="pill" id="copy" title="Copy the text">Copy</button>
       <span class="grow"></span>
       <button class="act" id="cancel">Cancel</button>
+      <button class="pill" id="mine" hidden title="Insert what you said, without the changes">Use my words</button>
       <button class="act" id="done">Done</button>
     </div>
     <div class="foot"><span id="hk"></span><a id="settings">Settings</a></div>

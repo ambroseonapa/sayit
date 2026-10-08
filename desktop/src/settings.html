@@ -73,8 +73,12 @@
     <h2>What should happen to your words?</h2>
     <label class="opt"><input type="radio" name="mode" value="exact"><div><b>Exact words</b><span>Types what Whisper heard.</span></div></label>
     <label class="opt"><input type="radio" name="mode" value="grammar"><div><b>Fix grammar <small>(recommended)</small></b><span>Full stops, commas, capitals and grammar mistakes. Never rephrases.</span></div></label>
+    <label class="opt"><input type="radio" name="mode" value="polish"><div><b>Polish <small>(keeps my voice)</small></b><span>Puts broken or half-finished sentences together so they make sense, fixes grammar and adds missing small words. Keeps your meaning and your own words.</span></div></label>
     <label class="opt"><input type="radio" name="mode" value="rephrase"><div><b>Rephrase</b><span>Rewrites it to read more clearly, same meaning.</span></div></label>
     <label class="opt"><input type="checkbox" id="fillers"><div><b>Remove "um", "uh" and stutters</b><span>"um so I I I think" becomes "so I think". Real words are never removed.</span></div></label>
+    <label class="f" for="samples">Write like me <small style="font-weight:400;color:var(--muted)">(optional, for Polish and Rephrase)</small></label>
+    <textarea id="samples" style="min-height:90px" placeholder="Paste one or two paragraphs you wrote yourself (an email, a message, part of an essay). SayIt follows your style from them."></textarea>
+    <label class="opt"><input type="checkbox" id="showChanges"><div><b>Show the changes before inserting</b><span>See what was changed and choose "Insert" or "Use my words". Off by default, because it adds a step.</span></div></label>
     <label class="f" for="tone">Rephrase style</label>
     <select id="tone">
       <option value="natural">Natural (keep my level of formality)</option>

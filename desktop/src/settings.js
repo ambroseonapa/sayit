@@ -32,6 +32,8 @@ async function load() {
   $("showBubble").checked = S.showBubble;
   $("fillers").checked = S.fillers !== false;
   $("tone").value = S.tone || "natural";
+  $("samples").value = S.samples || "";
+  $("showChanges").checked = !!S.showChanges;
   document.querySelector(`input[name=bubbleSize][value=${S.bubbleSize || "m"}]`).checked = true;
   for (const [name, def] of [["theme", "system"], ["panelPlace", "typing"], ["textSize", "l"]]) {
     const r = document.querySelector(`input[name=${name}][value=${S[name] || def}]`); if (r) r.checked = true;
@@ -52,6 +54,8 @@ $("vocab").addEventListener("change", () => set({ vocab: $("vocab").value.trim()
 $("showBubble").addEventListener("change", () => set({ showBubble: $("showBubble").checked }));
 $("fillers").addEventListener("change", () => set({ fillers: $("fillers").checked }));
 $("tone").addEventListener("change", () => set({ tone: $("tone").value }));
+$("samples").addEventListener("change", () => set({ samples: $("samples").value.trim().slice(0, 3000) }));
+$("showChanges").addEventListener("change", () => set({ showChanges: $("showChanges").checked }));
 document.querySelectorAll("input[name=bubbleSize]").forEach((r) => r.addEventListener("change", () => set({ bubbleSize: r.value })));
 for (const name of ["theme", "panelPlace", "textSize"]) document.querySelectorAll(`input[name=${name}]`).forEach((r) => r.addEventListener("change", () => set({ [name]: r.value })));
 $("resetPanel").addEventListener("click", async () => { await api.resetPanel(); $("resetPanel").textContent = "Box size reset ✓"; });

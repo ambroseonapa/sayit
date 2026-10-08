@@ -294,6 +294,7 @@ ipcMain.on("panel-resize-end", () => {
   settings.panelW = b.width; settings.panelH = b.height; saveSettings();
 });
 ipcMain.on("open-settings", openSettings);
+ipcMain.handle("copy", (_e, t) => { require("electron").clipboard.writeText(String(t || "")); return true; });
 ipcMain.handle("update:check", () => checkUpdate(true));
 ipcMain.handle("update:get", () => ({ update, current: app.getVersion() }));
 ipcMain.handle("panel:reset", () => {
@@ -369,6 +370,7 @@ app.on("will-quit", () => { globalShortcut.unregisterAll(); saveSettings(true); 
 // Scripted run used by the automated tests (SAYIT_TEST=logfile).
 function runTest() {
   settings.keys = { groq: "test" }; settings.firstRun = false;
+  if (process.env.SAYIT_SHOWCHANGES) settings.showChanges = true;
   for (const k of ["theme", "textSize", "bubbleSize", "panelPlace"]) if (process.env["SAYIT_" + k.toUpperCase()]) settings[k] = process.env["SAYIT_" + k.toUpperCase()];
   button.setBounds(buttonBounds()); broadcast();
   const shot = (w, name) => w.webContents.capturePage().then((img) => fs.writeFileSync(TEST + "." + name + ".png", img.toPNG()));
@@ -391,7 +393,16 @@ function runTest() {
   }, 5000);
   setTimeout(() => shot(panel, "panel"), 7600);
   setTimeout(() => shot(button, "button"), 7700);
+  setTimeout(async () => {
+    await panel.webContents.executeJavaScript("document.getElementById('copy').click()");
+    setTimeout(async () => testLog({ event: "copy", clipboard: require("electron").clipboard.readText(), label: await panel.webContents.executeJavaScript("document.getElementById('copy').textContent") }), 300);
+  }, 9000);
   setTimeout(() => { testLog({ event: "finish" }); toggle("hotkey"); }, 10500);
+  if (process.env.SAYIT_SHOWCHANGES) setTimeout(async () => {
+    await shot(panel, "review");
+    testLog({ event: "review", html: await panel.webContents.executeJavaScript("document.getElementById('text').innerHTML + ' | done=' + document.getElementById('done').textContent + ' mine.hidden=' + document.getElementById('mine').hidden") });
+    await panel.webContents.executeJavaScript("document.getElementById('done').click()");
+  }, 12000);
   setTimeout(() => testLog({ event: "after", panelVisible: panel.isVisible(), state: panelState }), 13500);
   setTimeout(async () => { if (settingsWin) { await settingsWin.webContents.executeJavaScript("window.scrollTo(0, 99999)"); setTimeout(() => shot(settingsWin, "settings"), 300); } }, 3000);
   setTimeout(() => app.quit(), 14500);

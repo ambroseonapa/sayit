@@ -2,7 +2,7 @@
 const api = window.sayit;
 const $ = (id) => document.getElementById(id);
 const RATE = 16000, FRAME = 320; // 20 ms frames
-const MODES = { exact: "Exact words", grammar: "Fix grammar", rephrase: "Rephrase" };
+const MODES = { exact: "Exact words", grammar: "Fix grammar", polish: "Polish", rephrase: "Rephrase" };
 const TEXT_SIZES = ["s", "m", "l", "xl"];
 const undoKey = api.platform === "darwin" ? "⌘Z" : "Ctrl+Z";
 
@@ -33,15 +33,22 @@ function setTextSize(d) {
   paintStatic();
 }
 
-$("done").addEventListener("click", () => finish());
+$("done").addEventListener("click", () => (reviewDone ? reviewDone(reviewAfter) : finish()));
+$("mine").addEventListener("click", () => reviewDone && reviewDone(reviewBefore));
+$("copy").addEventListener("click", async () => {
+  const t = reviewDone ? reviewAfter : fullText();
+  if (!t) { $("copy").textContent = "Nothing yet"; setTimeout(() => ($("copy").textContent = "Copy"), 1200); return; }
+  await api.copy(t);
+  $("copy").textContent = "Copied ✓"; setTimeout(() => ($("copy").textContent = "Copy"), 1400);
+});
 $("cancel").addEventListener("click", () => cancel());
 $("close").addEventListener("click", () => cancel());
 $("settings").addEventListener("click", () => api.openSettings());
 $("smaller").addEventListener("click", () => setTextSize(-1));
 $("bigger").addEventListener("click", () => setTextSize(1));
 $("mode").addEventListener("click", () => {
-  const order = ["exact", "grammar", "rephrase"];
-  settings.mode = order[(order.indexOf(settings.mode) + 1) % 3];
+  const order = ["exact", "grammar", "polish", "rephrase"];
+  settings.mode = order[(order.indexOf(settings.mode) + 1) % order.length];
   api.setSettings({ mode: settings.mode });
   spec = null; scheduleSpec(); paintStatic();
 });
@@ -219,7 +226,39 @@ async function start() {
   }
 }
 
+// ---------- "show the changes" view (Settings → off by default) ----------
+let reviewDone = null, reviewBefore = "", reviewAfter = "";
+function review(before, after) {
+  return new Promise((resolve) => {
+    reviewBefore = before; reviewAfter = after;
+    reviewDone = (v) => { reviewDone = null; $("mine").hidden = true; $("done").textContent = "Done"; $("mode").hidden = false; resolve(v); };
+    setState("working", "Check the changes");
+    $("done").disabled = false; $("done").textContent = "Insert"; $("mine").hidden = false; $("mode").hidden = true;
+    const t = $("text"); t.textContent = "";
+    for (const d of S_diff(before, after)) {
+      if (d.t === "same") t.append(d.w + " ");
+      else { const s = document.createElement("span"); s.className = d.t === "del" ? "del" : "ins"; s.textContent = d.w; t.append(s, " "); }
+    }
+  });
+}
+function S_diff(a, b) {
+  const x = String(a || "").split(/\s+/).filter(Boolean), y = String(b || "").split(/\s+/).filter(Boolean);
+  const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+  const n = x.length, m = y.length, L = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = norm(x[i]) === norm(y[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (norm(x[i]) === norm(y[j])) { out.push({ t: x[i] === y[j] ? "same" : "fix", w: y[j] }); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) out.push({ t: "del", w: x[i++] });
+    else out.push({ t: "ins", w: y[j++] });
+  }
+  while (i < n) out.push({ t: "del", w: x[i++] });
+  while (j < m) out.push({ t: "ins", w: y[j++] });
+  return out;
+}
+
 function cancel() {
+  if (reviewDone) { reviewDone(null); return; }
   if (state === "idle") return;
   stopMic(); clearInterval(timer); clearTimeout(specTimer);
   segs = []; cur = null;
@@ -253,11 +292,18 @@ async function finish() {
 
   let note = "";
   if (settings.mode !== "exact") {
-    $("status").textContent = settings.mode === "rephrase" ? "Rephrasing…" : "Fixing grammar…";
-    const r = await withTimeout(spec && spec.text === text ? spec.p : api.polish(text, settings.mode), settings.mode === "rephrase" ? 15000 : 8000);
+    $("status").textContent = settings.mode === "rephrase" ? "Rephrasing…" : settings.mode === "polish" ? "Polishing…" : "Fixing grammar…";
+    const slow = settings.mode === "rephrase" || settings.mode === "polish";
+    const said = text;
+    const r = await withTimeout(spec && spec.text === text ? spec.p : api.polish(text, settings.mode), slow ? 20000 : 8000);
     if (r && !r.error && r.text) text = r.text;
     else if (r && r.error) note = "grammar fix skipped (" + r.error + ")";
     if (r && r.note) note = r.note;
+    if (settings.showChanges && !note && text.trim() !== said.trim()) {
+      const pick = await review(said, text);
+      if (pick === null) { segs = []; close(); return; }
+      text = pick;
+    }
   }
   if (/[.?!]$/.test(text)) text += " "; // so your next sentence starts cleanly
 
