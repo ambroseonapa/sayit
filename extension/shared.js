@@ -10,7 +10,7 @@ var SAYIT_DEFAULTS = {
   lang: "en-GB",
   spokenPunct: true,
   autoPunct: true,        // free mode: full stop when you pause
-  speech: "chrome",       // "chrome" (instant) | "whisper" (most accurate) | "local" (on this computer)
+  speech: "groq",         // "groq" (fast & accurate, Whisper at each pause) | "chrome" (built-in, no key) | "local" (on this computer)
   vocab: "",              // names and special words, comma separated
   autoStop: 0,            // seconds of silence before finishing by itself (0 = off)
   undoBar: true,          // small Undo / Original pill after inserting

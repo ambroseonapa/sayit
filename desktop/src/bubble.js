@@ -188,7 +188,12 @@ async function toggle() {
 }
 
 async function start() {
-  if (!settings.hasKey) { api.openSettings(); return; }
+  if (!settings.hasKey) {
+    setState("done", "SayIt needs a free Groq key to hear you (Claude can fix grammar, but can't turn speech into text). Opening settings…");
+    api.expand(true);
+    setTimeout(() => { collapse(); api.openSettings(); }, 3500);
+    return;
+  }
   segs = []; cur = null; spec = null; noise = 0.004; lastError = "";
   setState("listening", "Listening…");
   paintText();

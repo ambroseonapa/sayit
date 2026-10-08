@@ -4,7 +4,7 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const DEFAULTS = {
     mode: "grammar", engine: "free", lang: "en-GB", spokenPunct: true, autoPunct: true, undoBar: true,
-    speech: "chrome", autoStop: 0, size: "l"
+    speech: "groq", autoStop: 0, size: "l"
   };
   const MODES = {
     exact: { label: "Exact words", hint: "types exactly what you say" },
@@ -20,6 +20,7 @@
 
   let state = "idle"; // idle | listening | working
   let rec = null, target = null, savedRange = null, savedSel = null;
+  let useGroq = false, gsegs = [], gSpeaking = false; // "Fast & accurate (Groq)" speech: pieces transcribed at each pause
   let segments = [], interim = "", stopRequested = false, cancelled = false, local = false, netErrors = 0, micLost = false, listenStatus = "";
   let docsEl = null, docsInserted = false; // Google Docs
   let settings = { ...DEFAULTS };
@@ -271,18 +272,24 @@
     const status = bar.querySelector(".status");
     if (state !== "working") status.textContent = listenStatus || "Listening…";
     const chip = bar.querySelector(".chip");
-    const chipText = settings.speech === "whisper" ? "most accurate" : local ? "on this computer" : "";
+    const chipText = local ? "on this computer" : "";
     chip.textContent = chipText; chip.style.display = chipText ? "" : "none";
-    chip.title = settings.speech === "whisper"
-      ? "Your recording is sent to Whisper when you press Done, for the most accurate text."
-      : "Your voice is turned into text on this computer, not on Google's servers.";
+    chip.title = "Your voice is turned into text on this computer, not on Google's servers.";
     const m = MODES[settings.mode] || MODES.grammar;
     const mb = bar.querySelector(".mode"); mb.textContent = m.label + " ▾"; mb.title = m.hint + ". Click to change.";
     const t = bar.querySelector(".text");
-    const said = segments.join(" ");
-    t.textContent = said;
-    if (interim) t.appendChild(el("span", "interim", (said ? " " : "") + interim));
-    if (!said && !interim) t.appendChild(el("span", "hint", "Start speaking… Say \"comma\", \"full stop\" or \"new line\" any time."));
+    if (useGroq) {
+      const said = gTexts().join(" ");
+      const waiting = gSpeaking || gsegs.some((s) => s.status === "pending");
+      t.textContent = said;
+      if (waiting) t.appendChild(el("span", "interim", (said ? " " : "") + "…"));
+      if (!said && !waiting) t.appendChild(el("span", "hint", "Start speaking. Your words appear each time you pause."));
+    } else {
+      const said = segments.join(" ");
+      t.textContent = said;
+      if (interim) t.appendChild(el("span", "interim", (said ? " " : "") + interim));
+      if (!said && !interim) t.appendChild(el("span", "hint", "Start speaking… Say \"comma\", \"full stop\" or \"new line\" any time."));
+    }
     t.scrollTop = t.scrollHeight;
     bar.querySelectorAll(".mode,.done").forEach((b) => (b.disabled = state === "working"));
   }
@@ -335,17 +342,41 @@
   }
   function polishReq(text) { const p = send({ type: "polish", text, mode: settings.mode }); p.catch(() => {}); return p; }
   function scheduleSpec() {
-    if (settings.mode === "exact" || settings.speech === "whisper") return; // Whisper re-hears it all at the end
+    if (settings.mode === "exact") return;
     clearTimeout(specTimer);
     specTimer = setTimeout(() => {
       if (state !== "listening") return;
-      const t = prepare(segments);
+      if (useGroq && gsegs.some((s) => s.status === "pending")) return;
+      const t = useGroq ? prepare(gTexts(), { fromWhisper: true }) : prepare(segments);
       if (!t || (spec && spec.text === t)) return;
       spec = { text: t, promise: polishReq(t) };
     }, settings.engine === "ai" || settings.mode === "rephrase" ? 300 : 900);
   }
   function timeout(p, ms, what) {
     return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what || "took too long")), ms))]);
+  }
+
+  // ---------- "Fast & accurate (Groq)" speech ----------
+  // A hidden SayIt page records your voice and cuts it at each pause; the background sends each piece to
+  // Whisper while you keep talking, and the text comes back here piece by piece.
+  function gTexts() { return gsegs.filter((s) => s.status === "done" && s.text).sort((a, b) => a.id - b.id).map((s) => s.text); }
+  function gSeg(id) { let s = gsegs.find((x) => x.id === id); if (!s) { s = { id, status: "pending", text: "" }; gsegs.push(s); } return s; }
+  let gError = "";
+  try { chrome.runtime.onMessage.addListener((m) => {
+    if (!m || !m.sayit || !useGroq || state === "idle") return;
+    if (m.type === "seg-pending") { gSeg(m.id); gSpeaking = false; }
+    else if (m.type === "seg-text") {
+      const s = gSeg(m.id);
+      s.status = m.error ? "failed" : "done"; s.text = m.text || "";
+      if (m.error) gError = m.error;
+      scheduleSpec();
+    }
+    else if (m.type === "speaking") { gSpeaking = true; lastSpeech = Date.now(); }
+    else if (m.type === "level") { if (m.v > 0.12) lastSpeech = Date.now(); return; }
+    if (state === "listening") renderBar();
+  }); } catch {}
+  function waitFor(cond, ms) {
+    return new Promise((res) => { const end = Date.now() + ms; const tick = () => (cond() || Date.now() > end ? res(cond()) : setTimeout(tick, 40)); tick(); });
   }
 
   // ---------- audio for Whisper ----------
@@ -386,30 +417,56 @@
     try { rec && rec.abort(); } catch {}
     if (recorder && recorder.state !== "inactive") { try { recorder.stop(); } catch {} }
     stopMic(); recorder = null;
+    if (useGroq) { try { chrome.runtime.sendMessage({ type: "capture-stop", cancel: true }).catch(() => {}); } catch {} }
+    useGroq = false; gSpeaking = false;
     state = "idle";
   }
 
   async function start() {
-    if (!SR) { toast("This browser doesn't support voice typing. Use Google Chrome.", [], { error: true }); return; }
     if (!docsEl) { target = deepActive(); saveCaret(); }
+    useGroq = false; gsegs = []; gSpeaking = false; gError = "";
     segments = []; interim = ""; stopRequested = false; cancelled = false; last = null; spec = null; netErrors = 0; micLost = false; listenStatus = ""; local = false;
     state = "listening"; lastSpeech = Date.now();
     try { settings = { ...DEFAULTS, ...(await chrome.storage.sync.get(DEFAULTS)) }; } catch {}
+    if (settings.speech === "whisper") settings.speech = "groq"; // older setting name
     renderBar();
     try { chrome.runtime.sendMessage({ type: "warm" }).catch(() => {}); } catch {}
+
+    if (settings.speech === "groq") {
+      let r = null;
+      try { r = await timeout(chrome.runtime.sendMessage({ type: "capture-start" }), 6000); } catch (e) { r = { error: e.message }; }
+      if (state !== "listening") { if (r && r.ok) chrome.runtime.sendMessage({ type: "capture-stop", cancel: true }).catch(() => {}); return; }
+      if (r && r.ok) {
+        useGroq = true;
+        renderBar();
+        startSilenceTimer();
+        return;
+      }
+      if (r && r.error === "mic-permission") {
+        reset();
+        toast("SayIt needs your permission to use the microphone. You only do this once.",
+          [["Allow microphone", () => chrome.runtime.sendMessage({ type: "openMicPage" })]], { error: true, ms: 15000 });
+        return;
+      }
+      // No Groq key, or the recorder couldn't start: use Chrome's built-in speech instead.
+    }
+    if (!SR) { reset(); toast("This browser doesn't support voice typing. Use Google Chrome.", [], { error: true }); return; }
 
     if (settings.speech === "local" && typeof SR.available === "function") {
       try { local = (await timeout(SR.available({ langs: [settings.lang], processLocally: true }), 1500)) === "available"; } catch { local = false; }
       renderBar();
     }
-    if (settings.speech === "whisper") startRecorder(); // runs alongside the live preview
     if (state !== "listening") return;
     begin();
+    startSilenceTimer();
+  }
 
+  function startSilenceTimer() {
     clearInterval(silenceTimer);
     if (settings.autoStop > 0) {
       silenceTimer = setInterval(() => {
-        if (state === "listening" && (segments.length || interim) && Date.now() - lastSpeech > settings.autoStop * 1000) stop(false);
+        const said = useGroq ? gsegs.length || gSpeaking : segments.length || interim;
+        if (state === "listening" && said && Date.now() - lastSpeech > settings.autoStop * 1000) stop(false);
       }, 300);
     }
   }
@@ -462,6 +519,8 @@
       if (rec !== me || state !== "listening") return;
       if (stopRequested) return finish();
       if (micLost) return; // waiting for you to press Done
+      // Chrome throws away words it hadn't finished when a session ends. Keep them.
+      if (interim) { segments.push(interim); interim = ""; renderBar(); scheduleSpec(); }
       // Chrome ends its session after pauses and after about a minute. Start a new one straight away,
       // so you can talk for as long as you like. Only slow down if the connection keeps failing.
       const wait = netErrors ? Math.min(3000, 250 * netErrors) : 0;
@@ -478,7 +537,7 @@
     if (state !== "listening") return;
     cancelled = cancel; stopRequested = true;
     clearInterval(silenceTimer);
-    if (cancel) return finish();
+    if (cancel || useGroq) return finish();
     try { rec && rec.stop(); } catch {}
     clearTimeout(stopTimer);
     stopTimer = setTimeout(finish, interim ? 450 : 150);
@@ -488,7 +547,7 @@
     clearTimeout(stopTimer); clearTimeout(specTimer); clearInterval(silenceTimer);
     if (state !== "listening") return;
     if (cancelled) { reset(); clearUI(); return; }
-    const segs = interim ? [...segments, interim] : segments.slice();
+    let segs = interim ? [...segments, interim] : segments.slice();
     try { rec && rec.abort(); } catch {}
 
     state = "working"; workingSince = Date.now();
@@ -500,23 +559,25 @@
 
     try {
       renderBar();
-      let raw = prepare(segs);
-      let note = "";
+      let raw, note = "";
 
-      if (settings.speech === "whisper") {
-        setStatus("Getting your exact words…");
-        const audio = await timeout(stopRecorder(), 2000).catch(() => null);
-        if (audio && audio.size > 2000) {
-          try {
-            const r = await timeout(send({ type: "transcribe", audio: await blobToBase64(audio), mime: audio.type, lang: settings.lang }), 13000);
-            const heard = r.text;
-            const fake = /thank(s| you) for watching|subtitles by|amara\.org/i;
-            if (heard && !(fake.test(heard) && !fake.test(raw))) raw = prepare([heard], { fromWhisper: true });
-          } catch (err) { note = "Accurate speech failed (" + err.message + "), used the quick version."; }
-        }
-      } else stopMic();
+      if (useGroq) {
+        setStatus("Finishing…");
+        // Ask the recorder for the last piece you said, then wait for every piece to come back as text.
+        let r = null;
+        try { r = await timeout(chrome.runtime.sendMessage({ type: "capture-stop" }), 4000); } catch {}
+        const count = (r && r.count) || 0;
+        await waitFor(() => gsegs.length >= count && !gsegs.some((s) => s.status === "pending"), 15000);
+        try { chrome.runtime.sendMessage({ type: "capture-end" }).catch(() => {}); } catch {}
+        if (gsegs.some((s) => s.status !== "done")) note = "Some words were lost (" + (gError || "slow connection") + ").";
+        segs = gTexts();
+        raw = prepare(segs, { fromWhisper: true });
+      } else {
+        stopMic();
+        raw = prepare(segs);
+      }
 
-      if (!raw) { reset(); toast("Didn't catch anything. Tap SayIt and try again."); return; }
+      if (!raw) { reset(); toast(gError ? "Couldn't hear it: " + gError : "Didn't catch anything. Tap SayIt and try again.", [], { error: !!gError }); return; }
 
       const mode = settings.mode;
       let res = { text: raw, changes: 0 };

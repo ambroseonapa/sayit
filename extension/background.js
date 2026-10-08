@@ -71,6 +71,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     return true;
   }
   if (msg && msg.type === "warm") { warm(); }
+  // recorder page -> background
+  if (msg && msg.target === "background") {
+    if (msg.type === "seg") onSegment(msg);
+    else if (msg.type === "speaking") toTab({ type: "speaking" });
+    else if (msg.type === "level") toTab({ type: "level", v: msg.v });
+    return;
+  }
+  // page -> background
+  if (msg && msg.type === "capture-start") { captureStart(_sender).then(reply, (e) => reply({ error: e.message })); return true; }
+  if (msg && msg.type === "capture-stop") {
+    chrome.runtime.sendMessage({ target: "offscreen", type: msg.cancel ? "cancel" : "stop" })
+      .then((r) => { if (msg.cancel) cap = null; reply(r || { count: 0 }); }, () => reply({ count: 0 }));
+    return true;
+  }
+  if (msg && msg.type === "capture-end") { cap = null; }
+  if (msg && msg.type === "openMicPage") { chrome.tabs.create({ url: chrome.runtime.getURL("mic.html") }); }
   if (msg && msg.type === "openOptions") chrome.runtime.openOptionsPage();
   if (msg && msg.type === "checkUpdate") { checkUpdate(true).then(() => chrome.storage.local.get("update")).then((u) => reply(u.update || null)); return true; }
 });
@@ -211,33 +227,85 @@ const WHISPER = {
   openai: { url: "https://api.openai.com/v1/audio/transcriptions", models: ["gpt-4o-mini-transcribe", "whisper-1"] }
 };
 
-async function transcribe({ audio, mime, lang }) {
+const whisperModel = {}; // remember which model worked, so we don't retry dead ones
+const FAKE_WHISPER = /^(thank(s| you)( so much)?( for watching| for listening)?[.!]?|you[.!]?|bye[.!]?|\.+|subtitles by.*|.*amara\.org.*)$/i;
+
+async function transcribe({ audio, mime, lang, prompt }) {
   const s = await getSettings();
   const keys = s.keys || {};
   const which = keys.groq ? "groq" : keys.openai ? "openai" : null;
-  if (!which) throw new Error("Most accurate speech needs a Groq or OpenAI key");
+  if (!which) throw new Error("Fast speech needs a Groq key (free) or an OpenAI key");
+  if (keys.groq === "TEST") { await new Promise((r) => setTimeout(r, 250)); return { text: "piece " + (audio.length % 97), engine: "test" }; } // automated tests only
   const bin = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
-  const blob = new Blob([bin], { type: mime || "audio/webm" });
+  const type = mime || "audio/webm";
+  const blob = new Blob([bin], { type });
   const vocab = (s.vocab || "").split(/[,\n]+/).map((w) => w.trim()).filter(Boolean).join(", ");
+  const models = whisperModel[which] ? [whisperModel[which]] : WHISPER[which].models;
   let lastErr;
-  for (const model of WHISPER[which].models) {
+  for (const model of models) {
     const fd = new FormData();
-    fd.append("file", blob, "speech.webm");
+    fd.append("file", blob, type.includes("wav") ? "speech.wav" : "speech.webm");
     fd.append("model", model);
     fd.append("language", (lang || "en").split("-")[0]);
     fd.append("temperature", "0");
     fd.append("response_format", "json");
-    if (vocab) fd.append("prompt", vocab + ".");
+    const p = [vocab ? vocab + "." : "", prompt || ""].join(" ").trim().slice(-800);
+    if (p) fd.append("prompt", p);
     let r;
     try {
-      r = await fetch(WHISPER[which].url, { method: "POST", body: fd, headers: { authorization: "Bearer " + keys[which] }, signal: withTimeout(12000) });
+      r = await fetch(WHISPER[which].url, { method: "POST", body: fd, headers: { authorization: "Bearer " + keys[which] }, signal: withTimeout(15000) });
     } catch (e) {
-      throw new Error(e.name === "AbortError" ? "speech service took too long" : "couldn't reach the speech service");
+      throw new Error(e.name === "AbortError" ? "speech service took too long" : "couldn't reach the speech service, check your internet");
     }
     if (r.status === 404 || r.status === 400) { lastErr = await errText(r); continue; } // model gone? try the next one
     if (!r.ok) throw new Error(await errText(r));
+    whisperModel[which] = model;
     const data = await r.json();
-    return { text: (data.text || "").trim(), engine: which };
+    const text = (data.text || "").trim();
+    return { text: FAKE_WHISPER.test(text) ? "" : text, engine: which };
   }
   throw new Error(lastErr || "speech service error");
+}
+
+// ---------- Fast & accurate speech: recorder page + Whisper at each pause ----------
+// The recorder runs in a hidden extension page, so the microphone permission is asked once for
+// SayIt (not once per website), and the audio is cut at your pauses and transcribed while you talk.
+let cap = null; // { tabId, frameId, texts: Map(id -> text), pending: Set }
+
+async function ensureOffscreen() {
+  if (chrome.offscreen.hasDocument && (await chrome.offscreen.hasDocument())) return;
+  try {
+    await chrome.offscreen.createDocument({ url: "offscreen.html", reasons: ["USER_MEDIA"], justification: "Record your voice while you dictate" });
+  } catch (e) { if (!String(e.message).includes("single offscreen")) throw e; }
+}
+function toTab(m) {
+  if (!cap) return;
+  chrome.tabs.sendMessage(cap.tabId, { ...m, sayit: true }, { frameId: cap.frameId }).catch(() => {});
+}
+function promptSoFar() {
+  if (!cap) return "";
+  return [...cap.texts.entries()].sort((a, b) => a[0] - b[0]).map((e) => e[1]).join(" ").slice(-300);
+}
+async function captureStart(sender) {
+  const s = await getSettings();
+  if (!(s.keys && (s.keys.groq || s.keys.openai))) return { error: "no-key" };
+  cap = { tabId: sender.tab.id, frameId: sender.frameId || 0, texts: new Map(), lang: s.lang };
+  await ensureOffscreen();
+  const r = await chrome.runtime.sendMessage({ target: "offscreen", type: "start" });
+  if (r && r.error) { cap = null; return r; }
+  return { ok: true };
+}
+async function onSegment(m) {
+  if (!cap) return;
+  const c = cap;
+  toTab({ type: "seg-pending", id: m.id });
+  try {
+    const r = await transcribe({ audio: m.audio, mime: m.mime, lang: c.lang, prompt: promptSoFar() });
+    if (cap !== c) return;
+    c.texts.set(m.id, r.text);
+    toTab({ type: "seg-text", id: m.id, text: r.text });
+  } catch (e) {
+    if (cap !== c) return;
+    toTab({ type: "seg-text", id: m.id, text: "", error: e.message });
+  }
 }

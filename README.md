@@ -18,7 +18,7 @@ Some boxes need a lot of typing: application forms, emails, comments, reports. S
 |---|---|---|
 | Works in | Any website in Chrome (forms, Gmail, Google Docs, LinkedIn…) | **Any app** on Windows or Mac (Word, WhatsApp, Outlook, Notepad…) |
 | How you start it | Mic icon in the toolbar, or `Alt+Shift+S` | Floating mic button, or `Alt+Shift+D` |
-| Words appear | Live, as you speak | Each time you pause |
+| Words appear | Each time you pause (same fast engine as the desktop app) | Each time you pause |
 | Download | [SayIt-Chrome-extension.zip][ext] | Windows: [installer][win] · [portable zip][winzip]<br>Mac: [Apple Silicon (M1–M4)][macarm] · [Intel][macintel] |
 
 You can use both. They share the same settings ideas and the same free key.
@@ -39,7 +39,9 @@ SayIt uses AI to fix grammar (and, in the desktop app, to turn your voice into t
 2. Click **Create API key**, give it any name, and copy the key (it starts with `gsk_`).
 3. Paste it into SayIt's settings (below). Keep it private, like a password.
 
-> The Chrome extension also works **without** a key in a basic free mode, but the grammar fixing is much weaker. With a key you get proper full stops, commas and grammar.
+> **The Groq key is always needed for speech**, even if you choose another AI (like Claude or Gemini) to fix the grammar. Those can fix text but can't turn your voice into text.
+>
+> The Chrome extension also works **without** any key, using Chrome's built-in speech and a basic free grammar checker, but it's slower and less accurate.
 
 ## Step 2: Install
 
@@ -50,8 +52,9 @@ SayIt uses AI to fix grammar (and, in the desktop app, to turn your voice into t
 3. Click **Load unpacked** and choose the folder you unzipped (the one with `manifest.json` inside).
 4. Click the puzzle-piece icon in Chrome's toolbar and **pin** SayIt.
 5. The settings page opens. Under **How grammar gets fixed**, choose **AI**, keep **Groq**, paste your key and press **Test speed**.
+6. Under **Speech**, keep **Fast and accurate (Groq)** and click **Allow microphone (once)**. After that SayIt works on every website without asking again.
 
-Also works in Microsoft Edge (`edge://extensions`). Brave blocks the speech service Chrome uses, so in Brave choose **Most accurate (Whisper)** under Speech.
+Also works in Microsoft Edge (`edge://extensions`) and Brave.
 
 ### Windows desktop app
 
@@ -92,6 +95,14 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 
 ---
 
+## Closing SayIt and getting it back (desktop)
+
+- **Hide just the button:** right-click the floating mic → **Hide floating button**. SayIt keeps working with the shortcut (`Alt+Shift+D`).
+- **Bring the button back:** right-click the SayIt icon in the tray (Windows, near the clock) or menu bar (Mac) → **Show floating button**. Or simply open SayIt again (next point).
+- **Quit completely:** tray / menu-bar icon → **Quit SayIt**.
+- **Open it again after quitting:** no need to reinstall. On Windows, open **SayIt** from the Start menu or the desktop shortcut. On Mac, open **SayIt** from Applications. Opening SayIt also brings back a hidden button.
+- **Starts with your computer:** SayIt starts automatically when you log in. To stop that, untick **Start SayIt when computer starts** in the tray / menu-bar menu.
+
 ## Settings explained
 
 **What should happen to your words?**
@@ -101,8 +112,8 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 - **Remove "um", "uh" and stutters**: *"um so I I I think"* → *"so I think"*. Real words are never removed.
 
 **Speech (Chrome extension)**
-- **Instant**: Chrome's own speech recognition. Words appear as you speak.
-- **Most accurate (Whisper)**: better with accents, names and fast speech. Adds about 1–2 seconds after Done. Uses your Groq key.
+- **Fast and accurate (Groq)**, recommended: the same engine as the desktop app. Your words appear each time you pause, it handles accents and names well, and the text is ready almost as soon as you press Done.
+- **Chrome's built-in**: no key needed. Words appear as you speak, but it can lag on slow internet.
 - **On this computer**: works without internet, usually less accurate.
 
 **Names and words SayIt should know**: add names and local words (for example *Okidi, Oyam, Makerere*) so they are always spelled right.
@@ -137,8 +148,8 @@ SayIt has no server of its own and collects nothing about you. Your keys are sto
 
 | What | Goes to |
 |---|---|
-| Your voice, Chrome **Instant** speech | Google's speech service (built into Chrome) |
-| Your voice, **Most accurate** / desktop app | Groq (or OpenAI, if that's the key you use) |
+| Your voice, **Fast and accurate** / desktop app | Groq (or OpenAI, if that's the key you use) |
+| Your voice, Chrome's **built-in** speech | Google's speech service (built into Chrome) |
 | Your voice, **On this computer** | Nowhere, it stays on your computer |
 | Your text, for grammar fixing | The AI provider you chose (Groq by default), or LanguageTool in free mode |
 | Update check | GitHub, once a day (just asks for the latest version number) |
@@ -151,6 +162,8 @@ Don't dictate passwords or anything you wouldn't send to these services.
 
 | Problem | Fix |
 |---|---|
+| Desktop: clicking the mic opens settings | SayIt has no Groq (or OpenAI) key. Paste your Groq key in settings. It's needed for speech even if Claude fixes your grammar. |
+| Extension: "SayIt needs your permission to use the microphone" | Click **Allow microphone** in that message (or in SayIt settings → Speech). You only do it once. |
 | "Microphone is blocked" | Click the icon on the left of the address bar → allow **Microphone**. On a Mac desktop app: System Settings → Privacy & Security → Microphone → SayIt on. |
 | Nothing happens when I tap the icon | Click inside a text box first. SayIt can't run on `chrome://` pages or the Chrome Web Store. |
 | "API key was rejected" | Paste the key again (no spaces) and press Test. Create a new key on Groq if needed. |

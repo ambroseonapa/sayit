@@ -41,7 +41,9 @@ async function load() {
   showProvider();
 }
 
-$("groqKey").addEventListener("change", () => { S.keys = { ...S.keys, groq: $("groqKey").value.trim() }; set({ keys: { groq: S.keys.groq } }); });
+function saveGroqKey() { const v = $("groqKey").value.trim(); if ((S.keys || {}).groq === v) return; S.keys = { ...S.keys, groq: v }; set({ keys: { groq: v } }); }
+$("groqKey").addEventListener("input", saveGroqKey);
+$("groqKey").addEventListener("change", saveGroqKey);
 document.querySelectorAll("input[name=mode]").forEach((r) => r.addEventListener("change", () => set({ mode: r.value })));
 $("lang").addEventListener("change", () => set({ lang: $("lang").value }));
 $("vocab").addEventListener("change", () => set({ vocab: $("vocab").value.trim() }));
@@ -63,8 +65,10 @@ $("checkUpd").addEventListener("click", async () => {
   const r = await api.checkUpdate();
   $("checkUpd").textContent = r.error ? r.error : showUpdate(r.update) ? "New version found ↑" : "You have the latest version ✓";
 });
-$("provider").addEventListener("change", () => { S.provider = $("provider").value; set({ provider: S.provider }); showProvider(); });
-$("otherKey").addEventListener("change", () => { set({ keys: { [S.provider]: $("otherKey").value.trim() } }); S.keys[S.provider] = $("otherKey").value.trim(); });
+$("provider").addEventListener("change", () => { if (S.provider !== "groq") saveOtherKey(); S.provider = $("provider").value; set({ provider: S.provider }); showProvider(); });
+function saveOtherKey() { const v = $("otherKey").value.trim(); if ((S.keys || {})[S.provider] === v) return; S.keys = { ...S.keys, [S.provider]: v }; set({ keys: { [S.provider]: v } }); }
+$("otherKey").addEventListener("input", saveOtherKey);
+$("otherKey").addEventListener("change", saveOtherKey);
 $("customUrl").addEventListener("change", () => set({ customUrl: $("customUrl").value.trim() }));
 $("model").addEventListener("change", () => set({ models: { [S.provider]: $("model").value.trim() } }));
 document.querySelectorAll("a[data-url]").forEach((a) => a.addEventListener("click", () => api.openUrl(a.dataset.url)));

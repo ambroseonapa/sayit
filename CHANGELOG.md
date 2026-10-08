@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0
+**Chrome extension**
+- **Much faster: same speech engine as the desktop app.** New default speech mode, *Fast and accurate (Groq)*: your voice is cut at each pause and turned into text while you keep talking, so the text is ready almost as soon as you press Done. It's also better with accents and names.
+- The microphone permission is now asked **once for SayIt**, not on every website.
+- Fixed: in Chrome's built-in speech mode, words could appear, vanish and come back, and some were lost when Chrome restarted listening. Half-heard words are now kept.
+- Fixed: an API key could be lost if you switched provider straight after pasting it. Keys now save the moment you paste them.
+
+**Desktop app**
+- Fixed: saving a key for another provider (e.g. Claude) erased the Groq key, so the mic only opened settings. Each provider's key is now kept.
+- Clear message when there's no speech key: Claude and Gemini can fix grammar, but SayIt needs a Groq (or OpenAI) key to turn speech into text.
+- Opening SayIt again (Start menu, desktop shortcut or Applications) while it's running now brings back the floating button.
+- SayIt now starts with your computer by default (untick it in the tray menu to stop).
+
 ## 0.5.0
 **Both**
 - Smoother grammar fixing: clearer instructions to the AI for full stops, commas, capitals and common grammar mistakes, while still never rephrasing.

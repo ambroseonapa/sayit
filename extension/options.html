@@ -124,8 +124,9 @@
       <option value="de-DE">Deutsch</option>
     </select>
     <label class="f">How your voice becomes text</label>
-    <label class="opt"><input type="radio" name="speech" value="chrome"><div><b>Instant <small>(recommended)</small></b><span>Chrome's own speech recognition. Words appear as you speak, and the text is ready the moment you press Done.</span></div></label>
-    <label class="opt"><input type="radio" name="speech" value="whisper"><div><b>Most accurate <small>(Whisper)</small></b><span>When you press Done, your recording is sent to Whisper, which is much better with accents, names and fast speech. Adds about 1–2 seconds. Uses your Groq key (or OpenAI key).</span></div></label>
+    <label class="opt"><input type="radio" name="speech" value="groq"><div><b>Fast and accurate <small>(Groq, recommended)</small></b><span>Same engine as the SayIt desktop app. Your words appear each time you pause, it handles accents and names well, and the text is ready almost as soon as you press Done. Uses your free Groq key (or an OpenAI key).</span></div></label>
+    <div class="row" id="micRow"><button class="ghost" id="micBtn">Allow microphone (once)</button><span class="status" id="micStatus"></span></div>
+    <label class="opt"><input type="radio" name="speech" value="chrome"><div><b>Chrome's built-in</b><span>No key needed. Words appear as you speak, but it can lag on slow internet and struggles more with accents.</span></div></label>
     <label class="opt"><input type="radio" name="speech" value="local"><div><b>On this computer</b><span>Works without internet, but is usually less accurate. Needs a one-time download.</span></div></label>
     <div class="row" id="dlRow"><button class="ghost" id="dl">Download speech for this computer</button><span class="status" id="dlStatus"></span></div>
     <label class="f" for="vocab">Names and words SayIt should know</label>

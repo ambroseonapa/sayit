@@ -64,7 +64,7 @@
   <section>
     <h2>Groq key <small style="font-weight:400;color:var(--muted)">(free, needed)</small></h2>
     <input type="password" id="groqKey" placeholder="gsk_…" autocomplete="off">
-    <p class="small">Used to turn your voice into text (Whisper) and to fix the grammar. <a data-url="https://console.groq.com/keys">Get a free key →</a> Sign in with Google, click "Create API key", paste it here.</p>
+    <p class="small"><b>Always needed:</b> SayIt uses it to turn your voice into text (Whisper), even if you choose another AI for grammar below. Claude and Gemini can't turn speech into text. <a data-url="https://console.groq.com/keys">Get a free key →</a> Sign in with Google, click "Create API key", paste it here.</p>
     <div class="row"><button id="testAi">Test</button><span class="status" id="aiStatus"></span></div>
   </section>
 
@@ -118,6 +118,7 @@
 
   <section>
     <h2>Other AI for grammar <small style="font-weight:400;color:var(--muted)">(optional)</small></h2>
+    <p class="small" style="margin-top:0">Only changes who fixes the grammar. Speech still uses your Groq key above. Groq is usually the fastest (about 0.5 s); Claude is about 0.8 s.</p>
     <label class="f" for="provider">Grammar provider</label>
     <select id="provider"></select>
     <div id="otherKeyBox">

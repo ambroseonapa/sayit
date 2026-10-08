@@ -40,7 +40,9 @@ async function load() {
   $("ver").textContent = "v" + chrome.runtime.getManifest().version;
   const { update } = await chrome.storage.local.get("update");
   showUpdate(update);
+  if (S.speech === "whisper") S.speech = "groq"; // older setting name
   document.querySelector(`input[name=speech][value=${S.speech}]`).checked = true;
+  checkMic();
   $("vocab").value = S.vocab || "";
   $("autoStop").value = String(S.autoStop || 0);
   showProvider();
@@ -57,15 +59,21 @@ $("autoStop").addEventListener("change", () => setSync({ autoStop: Number($("aut
 $("tone").addEventListener("change", () => setSync({ tone: $("tone").value }));
 for (const id of ["spokenPunct", "autoPunct", "undoBar", "fillers"]) $(id).addEventListener("change", () => setSync({ [id]: $(id).checked }));
 
-$("provider").addEventListener("change", () => { setSync({ provider: $("provider").value }); showProvider(); });
-$("key").addEventListener("change", async () => {
-  KEYS[S.provider] = $("key").value.trim();
+$("provider").addEventListener("change", async () => { await saveKey(); setSync({ provider: $("provider").value }); showProvider(); });
+// Save the key the moment it's pasted or typed (not only when you click away),
+// so switching provider straight after pasting never loses it.
+async function saveKey() {
+  const v = $("key").value.trim();
+  if ((KEYS[S.provider] || "") === v) return;
+  KEYS[S.provider] = v;
   await chrome.storage.local.set({ keys: KEYS });
-  if (KEYS[S.provider] && S.engine !== "ai") { // adding a key switches AI on
+  if (v && S.engine !== "ai") { // adding a key switches AI on
     document.querySelector("input[name=engine][value=ai]").checked = true;
     await setSync({ engine: "ai" });
   } else flash();
-});
+}
+$("key").addEventListener("input", saveKey);
+$("key").addEventListener("change", saveKey);
 $("model").addEventListener("change", () => setSync({ models: { ...(S.models || {}), [S.provider]: $("model").value.trim() } }));
 $("customUrl").addEventListener("change", async () => {
   const url = $("customUrl").value.trim();
@@ -113,8 +121,8 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 async function checkOffline() {
   const st = $("dlStatus"), btn = $("dl");
   $("dlRow").style.display = S.speech === "local" ? "" : "none";
-  if (S.speech === "whisper" && !KEYS.groq && !KEYS.openai) {
-    $("aiStatus").textContent = "Most accurate speech needs a Groq or OpenAI key above."; $("aiStatus").className = "status bad";
+  if (S.speech === "groq" && !KEYS.groq && !KEYS.openai) {
+    $("aiStatus").textContent = "Fast and accurate speech needs your Groq key above (until then SayIt uses Chrome's built-in speech)."; $("aiStatus").className = "status bad";
   }
   if (!SR || typeof SR.available !== "function") {
     btn.disabled = true; st.textContent = "Your Chrome version doesn't have offline speech yet. Update Chrome to get it.";
@@ -152,3 +160,17 @@ $("checkUpd").addEventListener("click", async (e) => {
   const u = await chrome.runtime.sendMessage({ type: "checkUpdate" });
   $("checkUpd").textContent = showUpdate(u) ? "New version found ↑" : "You have the latest version ✓";
 });
+
+// ----- microphone permission for SayIt (asked once, then works on every site) -----
+async function checkMic() {
+  $("micRow").style.display = S.speech === "groq" ? "" : "none";
+  let st = "prompt";
+  try { st = (await navigator.permissions.query({ name: "microphone" })).state; } catch {}
+  if (st === "granted") { $("micBtn").hidden = true; $("micStatus").textContent = "✓ Microphone allowed"; $("micStatus").className = "status good"; }
+  else { $("micBtn").hidden = false; $("micStatus").textContent = st === "denied" ? "Blocked. Click the icon left of the address bar and allow Microphone." : "Needed once for fast speech."; $("micStatus").className = "status"; }
+}
+$("micBtn").addEventListener("click", async () => {
+  try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach((t) => t.stop()); } catch {}
+  checkMic();
+});
+document.querySelectorAll("input[name=speech]").forEach((r) => r.addEventListener("change", () => { S.speech = r.value; checkMic(); }));

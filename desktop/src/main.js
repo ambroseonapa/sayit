@@ -161,9 +161,10 @@ ipcMain.handle("settings:get", () => publicSettings());
 ipcMain.handle("settings:getFull", () => settings);
 ipcMain.handle("settings:set", (_e, patch) => {
   const oldHotkey = settings.hotkey;
-  settings = { ...settings, ...patch };
-  if (patch.keys) settings.keys = { ...settings.keys, ...patch.keys };
-  if (patch.models) settings.models = { ...settings.models, ...patch.models };
+  // Merge keys and models with what's already saved, so saving one provider's key never erases another's.
+  const keys = patch.keys ? { ...settings.keys, ...patch.keys } : settings.keys;
+  const models = patch.models ? { ...settings.models, ...patch.models } : settings.models;
+  settings = { ...settings, ...patch, keys, models };
   saveSettings();
   let hotkeyOk = true;
   if (patch.hotkey && patch.hotkey !== oldHotkey) {
@@ -251,6 +252,9 @@ app.whenReady().then(() => {
   buildTray();
   if (!registerHotkey()) console.warn("SayIt: could not register", settings.hotkey);
   const hasKey = settings.keys && (settings.keys.groq || settings.keys.openai);
+  if (settings.firstRun && !TEST && (isWin || isMac)) {
+    try { app.setLoginItemSettings({ openAtLogin: true }); } catch {} // start with the computer (can be turned off in the tray menu)
+  }
   if (settings.firstRun || !hasKey || TEST) { settings.firstRun = false; saveSettings(); openSettings(); }
   screen.on("display-removed", () => setExpanded(expanded));
   if (!process.env.SAYIT_TEST) { setTimeout(() => checkUpdate(false), 8000); setInterval(() => checkUpdate(false), 24 * 3600 * 1000); }
@@ -265,6 +269,11 @@ app.whenReady().then(() => {
     setTimeout(() => app.quit(), 15000);
   }
 });
-app.on("second-instance", () => openSettings());
+// Opening SayIt again (Start menu, desktop shortcut, Applications) while it's running:
+// bring the floating button back and show settings.
+app.on("second-instance", () => {
+  if (!settings.showBubble) setShowBubble(true); else if (bubble && !bubble.isVisible()) bubble.showInactive();
+  openSettings();
+});
 app.on("window-all-closed", (e) => e.preventDefault && e.preventDefault()); // keep running in the tray
 app.on("will-quit", () => globalShortcut.unregisterAll());
