@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.4
+**Desktop app**
+- Clearer update message: "Check for updates" now says which version you have, and that an **Update now** button appears at the top of settings when a new version is out. If there is one, the page scrolls up to it.
+- This is also the first version you can get with **Update now** from 0.8.3.
+
 ## 0.8.3
 **Desktop app**
 - **Update now**: when a new version is out, press **Update now** in SayIt settings (or in the tray / menu-bar menu). SayIt downloads it, installs it and opens again by itself. No more downloading and installing by hand. (The Windows portable zip opens the download page instead.)

@@ -82,7 +82,9 @@ api.on("update-progress", ({ f, msg }) => { $("updFill").style.width = Math.roun
 $("checkUpd").addEventListener("click", async () => {
   $("checkUpd").textContent = "Checking…";
   const r = await api.checkUpdate();
-  $("checkUpd").textContent = r.error ? r.error : showUpdate(r.update) ? "New version found ↑" : "You have the latest version ✓";
+  $("checkUpd").textContent = r.error ? r.error : showUpdate(r.update) ? "New version found: press Update now at the top ↑"
+    : "You have the latest version (v" + r.current + ") ✓ When a new one comes out, an Update now button appears at the top of this page.";
+  if (r.update) window.scrollTo({ top: 0, behavior: "smooth" });
 });
 $("provider").addEventListener("change", () => { if (S.provider !== "groq") saveOtherKey(); S.provider = $("provider").value; set({ provider: S.provider }); showProvider(); });
 function saveOtherKey() { const v = $("otherKey").value.trim(); if ((S.keys || {})[S.provider] === v) return; S.keys = { ...S.keys, [S.provider]: v }; set({ keys: { [S.provider]: v } }); }

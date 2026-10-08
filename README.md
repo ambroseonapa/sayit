@@ -145,7 +145,7 @@ SayIt checks GitHub once a day for a new version. When there is one:
 
 **To update the Chrome extension:** download the new `SayIt-Chrome-extension.zip`, unzip it **over the files in your existing SayIt folder** (replace them), then go to `chrome://extensions` and click the **reload ↻** arrow on SayIt. Your key and settings stay. Reload any open tabs you want to use it in.
 
-**To update the desktop app:** open SayIt settings (or the tray / menu-bar menu) and press **Update now**. SayIt downloads the new version, installs it and opens again by itself, in about a minute. Your keys and settings stay.
+**To update the desktop app:** when a new version is out, a green box with an **Update now** button appears at the top of SayIt settings (and the tray / menu-bar menu shows **Update to vX now**). If you already have the newest version, you won't see the button, only "You have the latest version". Press **Update now**. SayIt downloads the new version, installs it and opens again by itself, in about a minute. Your keys and settings stay.
 - This works from version 0.8.3 on. If you have an older version, download and install 0.8.3 once by hand (installer on Windows; on Mac replace SayIt.app in Applications and run the `xattr` line again).
 - The Windows **portable zip** can't replace itself: Update now opens the download page instead.
 - Mac: after an update, macOS may ask again for microphone or Accessibility permission, because SayIt isn't signed by Apple.
