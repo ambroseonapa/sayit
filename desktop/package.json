@@ -25,7 +25,8 @@
     "files": [
       "src/**",
       "assets/**",
-      "package.json"
+      "package.json",
+      "!node_modules/koffi/build/koffi/!(win32_x64|win32_arm64|darwin_x64|darwin_arm64)/**"
     ],
     "asarUnpack": [
       "node_modules/koffi/**"
@@ -37,9 +38,6 @@
         "nsis",
         "zip"
       ],
-      "files": [
-        "!node_modules/koffi/build/koffi/!(win32_x64|win32_arm64)/**"
-      ],
       "artifactName": "SayIt-Windows-portable.${ext}"
     },
     "mac": {
@@ -49,10 +47,7 @@
       "extendInfo": {
         "NSMicrophoneUsageDescription": "SayIt listens to your voice to type what you say.",
         "LSUIElement": true
-      },
-      "files": [
-        "!node_modules/koffi/build/koffi/**"
-      ]
+      }
     },
     "directories": {
       "output": "dist"
