@@ -55,27 +55,34 @@ $("mode").addEventListener("click", () => {
 for (let i = 0; i < 7; i++) $("meter").appendChild(document.createElement("i"));
 
 // ---------- move (drag the top bar) and resize (drag the corner) ----------
-function dragger(el, onMove, onEnd, skip) {
-  let d = null;
+// The app follows the mouse itself (see main.js); here we only say when it starts and ends.
+// On Windows we don't "capture" the mouse: a capture that never got released made every
+// button in the box stop responding.
+let nativeMouse = false;
+api.nativeMouse().then((v) => { nativeMouse = !!v; }).catch(() => {});
+function dragger(el, onStart, skip) {
+  let on = false, pid = null;
   el.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 || (skip && skip(e))) return;
-    d = { x: e.screenX, y: e.screenY };
-    try { el.setPointerCapture(e.pointerId); } catch {}
+    on = true; pid = e.pointerId;
+    if (!nativeMouse) { try { el.setPointerCapture(e.pointerId); } catch {} }
     e.preventDefault();
+    onStart();
   });
-  el.addEventListener("pointermove", (e) => {
-    if (!d) return;
-    const dx = e.screenX - d.x, dy = e.screenY - d.y;
-    if (!dx && !dy) return;
-    d.x = e.screenX; d.y = e.screenY;
-    onMove(dx, dy);
-  });
-  const end = () => { if (d) { d = null; onEnd(); } };
+  const end = () => {
+    if (!on) return;
+    on = false;
+    try { if (pid != null && el.hasPointerCapture(pid)) el.releasePointerCapture(pid); } catch {}
+    api.panelGestureEnd();
+  };
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
+  el.addEventListener("lostpointercapture", end);
+  window.addEventListener("pointerup", end);
+  window.addEventListener("blur", end);
 }
-dragger($("top"), (dx, dy) => api.panelMove(dx, dy), () => api.panelMoveEnd(), (e) => e.target.closest("button"));
-dragger($("grip"), (dx, dy) => api.panelResize(dx, dy), () => api.panelResizeEnd());
+dragger($("top"), () => api.panelMoveStart(), (e) => e.target.closest("button"));
+dragger($("grip"), () => api.panelResizeStart());
 
 // ---------- UI ----------
 function setState(s, msg) {
@@ -91,10 +98,14 @@ function paintText() {
   const t = $("text");
   const done = segs.filter((x) => x.status === "done" && x.text).map((x) => x.text).join(" ");
   const pending = segs.some((x) => x.status === "pending") || (cur && cur.speech > 5);
+  // Only follow the newest words if you're already at the bottom. If you scrolled up to
+  // read something, stay there.
+  const atBottom = t.scrollHeight - t.scrollTop - t.clientHeight < 40;
+  const keep = t.scrollTop;
   t.textContent = done;
   if (pending) { const w = document.createElement("span"); w.className = "wait"; w.textContent = (done ? " " : "") + "…"; t.appendChild(w); }
   if (!done && !pending) { const h = document.createElement("span"); h.className = "hint"; h.textContent = "Start speaking. Your words appear here each time you pause."; t.appendChild(h); }
-  t.scrollTop = t.scrollHeight;
+  t.scrollTop = atBottom ? t.scrollHeight : keep;
 }
 function paintMeter(level) {
   const bars = $("meter").children;

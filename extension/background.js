@@ -227,7 +227,6 @@ const WHISPER = {
 };
 
 const whisperModel = {}; // remember which model worked, so we don't retry dead ones
-const FAKE_WHISPER = /^(thank(s| you)( so much)?( for watching| for listening)?[.!]?|you[.!]?|bye[.!]?|\.+|subtitles by.*|.*amara\.org.*)$/i;
 
 async function transcribe({ audio, mime, lang, prompt }) {
   const s = await getSettings();
@@ -262,7 +261,7 @@ async function transcribe({ audio, mime, lang, prompt }) {
     whisperModel[which] = model;
     const data = await r.json();
     const text = (data.text || "").trim();
-    return { text: FAKE_WHISPER.test(text) ? "" : text, engine: which };
+    return { text: sayitCleanSpeech(text, s.vocab), engine: which };
   }
   throw new Error(lastErr || "speech service error");
 }
@@ -292,7 +291,7 @@ async function transcribeGemini({ audio, mime, lang, prompt }, s) {
     const data = await r.json();
     const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
     const text = parts.map((p) => p.text || "").join(" ").trim();
-    return { text: FAKE_WHISPER.test(text) ? "" : text, engine: "gemini" };
+    return { text: sayitCleanSpeech(text, s.vocab), engine: "gemini" };
   }
   throw new Error(lastErr || "speech service error");
 }

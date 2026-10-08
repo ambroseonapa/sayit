@@ -10,7 +10,7 @@ const S = require("./shared.js");
 const isMac = process.platform === "darwin";
 const isWin = process.platform === "win32";
 const BUTTONS = { s: 48, m: 64, l: 84 };
-const PANEL_DEFAULT = { w: 440, h: 300 };   // a bit taller than wide: easier to read
+const PANEL_DEFAULT = { w: 420, h: 280 };   // a wide square: easy to read, not too big
 const PANEL_MIN = { w: 320, h: 190 };
 
 const gotLock = app.requestSingleInstanceLock();
@@ -36,6 +36,10 @@ function loadSettings() {
   if (settings.panelSize && !settings.textSizeMigrated) { // 0.5 setting → text size
     settings.textSize = { m: "m", l: "l", xl: "xl" }[settings.panelSize] || "l";
     settings.textSizeMigrated = true;
+  }
+  if (!settings.sizeFix082) { // 0.8.1 and older could make the box grow while dragging it
+    if ((settings.panelW || 0) >= 520 || (settings.panelH || 0) >= 360) { settings.panelW = PANEL_DEFAULT.w; settings.panelH = PANEL_DEFAULT.h; }
+    settings.sizeFix082 = true;
   }
 }
 let saveTimer = null;
@@ -112,6 +116,12 @@ function createPanel() {
     backgroundColor: themeResolved() === "dark" ? "#1c1f26" : "#ffffff"
   });
   panel.loadFile(path.join(__dirname, "panel.html"));
+  // Resizing from the window's own edges: remember that size too.
+  panel.on("resized", () => {
+    if (gesture || !panel.isVisible()) return;
+    const b = panel.getBounds();
+    settings.panelW = b.width; settings.panelH = b.height; saveSettings();
+  });
 }
 
 // Where the box opens: right under where you're typing (or where you last left it / next to the mic).
@@ -287,11 +297,12 @@ function buttonClick(from) {
   toggle("button");
 }
 function dragButton(dx, dy) {
-  const b = button.getBounds();
-  button.setBounds({ ...b, x: b.x + dx, y: b.y + dy });
+  const b = button.getBounds(), px = buttonPx(); // always the exact size, so it can't grow while dragging
+  button.setBounds({ x: Math.round(b.x + dx), y: Math.round(b.y + dy), width: px, height: px });
 }
 function dragButtonEnd() {
-  const b = clampToScreen(button.getBounds());
+  const px = buttonPx();
+  const b = clampToScreen({ ...button.getBounds(), width: px, height: px });
   button.setBounds(b);
   settings.pos = { x: b.x, y: b.y }; saveSettings();
 }
@@ -313,24 +324,50 @@ ipcMain.handle("native-mouse", () => nativeMouse);
 ipcMain.on("button-click", () => { if (!(nativeMouse && winmouse.sawPress())) buttonClick("window"); });
 ipcMain.on("drag", (_e, { dx, dy }) => { if (!nativeMouse) dragButton(dx, dy); });
 ipcMain.on("drag-end", () => { if (!nativeMouse) dragButtonEnd(); });
-ipcMain.on("panel-move", (_e, { dx, dy }) => {
-  const b = panel.getBounds();
-  panel.setBounds({ ...b, x: b.x + dx, y: b.y + dy });
-});
-ipcMain.on("panel-move-end", () => {
-  const b = clampToScreen(panel.getBounds());
+// Moving and resizing the box. The app follows the mouse itself and always sets an exact
+// position AND size. (Adding up small steps made the box grow on Windows with display
+// scaling, because every step rounded the size up by a pixel, and a lost "mouse up" left
+// the box stuck to the mouse.)
+let gesture = null, gestureTimer = null;
+function panelSize() {
+  return { w: Math.max(PANEL_MIN.w, settings.panelW || PANEL_DEFAULT.w), h: Math.max(PANEL_MIN.h, settings.panelH || PANEL_DEFAULT.h) };
+}
+function startGesture(kind) {
+  if (!panel || panel.isDestroyed()) return;
+  endGesture();
+  const p = screen.getCursorScreenPoint(), b = panel.getBounds(), z = panelSize();
+  gesture = { kind, sx: p.x, sy: p.y, x: b.x, y: b.y, w: kind === "resize" ? b.width : z.w, h: kind === "resize" ? b.height : z.h, t: Date.now() };
+  gesture.cw = gesture.w; gesture.ch = gesture.h;
+  gestureTimer = setInterval(stepGesture, 16);
+}
+function stepGesture() {
+  const g = gesture;
+  if (!g || !panel || panel.isDestroyed()) return endGesture();
+  // Windows: stop the moment the mouse button is up, even if the box never heard about it.
+  if (nativeMouse && Date.now() - g.t > 80 && !winmouse.leftDown()) return endGesture();
+  if (Date.now() - g.t > 60000) return endGesture(); // safety net
+  const p = screen.getCursorScreenPoint();
+  const dx = p.x - g.sx, dy = p.y - g.sy;
+  if (g.kind === "move") {
+    panel.setBounds({ x: Math.round(g.x + dx), y: Math.round(g.y + dy), width: g.w, height: g.h });
+  } else {
+    g.cw = Math.max(PANEL_MIN.w, Math.round(g.w + dx)); g.ch = Math.max(PANEL_MIN.h, Math.round(g.h + dy));
+    panel.setBounds({ x: g.x, y: g.y, width: g.cw, height: g.ch });
+  }
+}
+function endGesture() {
+  clearInterval(gestureTimer); gestureTimer = null;
+  const g = gesture; gesture = null;
+  if (!g || !panel || panel.isDestroyed()) return;
+  const b = clampToScreen({ ...panel.getBounds(), width: g.cw, height: g.ch });
   panel.setBounds(b);
-  settings.panelPos = { x: b.x, y: b.y }; saveSettings(); // used when "where I last left it" is chosen
-});
-ipcMain.on("panel-resize", (_e, { dx, dy }) => {
-  const b = panel.getBounds();
-  panel.setBounds({ ...b, width: Math.max(PANEL_MIN.w, b.width + dx), height: Math.max(PANEL_MIN.h, b.height + dy) });
-});
-ipcMain.on("panel-resize-end", () => {
-  const b = clampToScreen(panel.getBounds());
-  panel.setBounds(b);
-  settings.panelW = b.width; settings.panelH = b.height; saveSettings();
-});
+  if (g.kind === "move") settings.panelPos = { x: b.x, y: b.y }; // used when "where I last left it" is chosen
+  else { settings.panelW = b.width; settings.panelH = b.height; }
+  saveSettings();
+}
+ipcMain.on("panel-move-start", () => startGesture("move"));
+ipcMain.on("panel-resize-start", () => startGesture("resize"));
+ipcMain.on("panel-gesture-end", () => endGesture());
 ipcMain.on("open-settings", openSettings);
 ipcMain.handle("copy", (_e, t) => { require("electron").clipboard.writeText(String(t || "")); return true; });
 ipcMain.handle("update:check", () => checkUpdate(true));
@@ -380,9 +417,10 @@ app.whenReady().then(() => {
   buildTray();
   caret.startTracking();
   if (isWin && !TEST) nativeMouse = winmouse.start({
-    getButton: () => button, onClick: () => buttonClick("windows"),
+    getButton: () => button, getOthers: () => [panel, settingsWin], onClick: () => buttonClick("windows"),
     onDrag: dragButton, onDragEnd: dragButtonEnd, onMenu: buttonMenu
   });
+  if (nativeMouse) caret.setClickSource(winmouse.lastClick);
   debugLog("started v" + app.getVersion() + " on " + process.platform + ", direct mouse: " + nativeMouse);
   nativeTheme.on("updated", broadcast);
   if (!registerHotkey()) console.warn("SayIt: could not register", settings.hotkey);
@@ -420,12 +458,17 @@ function runTest() {
   }, 1500);
   setTimeout(() => testLog({ event: "panel", bounds: panel.getBounds(), visible: panel.isVisible(), focusable: panel.isFocusable() }), 3500);
   if (process.env.SAYIT_RESIZE) setTimeout(async () => {
-    const ev = (id, type, x, y) => `document.getElementById('${id}').dispatchEvent(new PointerEvent('${type}',{button:0,screenX:${x},screenY:${y},bubbles:true}));`;
-    await panel.webContents.executeJavaScript(ev("grip","pointerdown",0,0) + ev("grip","pointermove",120,90) + ev("grip","pointerup",120,90));
-    await new Promise((r) => setTimeout(r, 300));
-    await panel.webContents.executeJavaScript(ev("top","pointerdown",0,0) + ev("top","pointermove",-200,-100) + ev("top","pointerup",-200,-100));
-    await new Promise((r) => setTimeout(r, 300));
-    testLog({ event: "after-resize-move", bounds: panel.getBounds(), saved: { w: settings.panelW, h: settings.panelH, pos: settings.panelPos }, button: button.getBounds() });
+    const scr = require("electron").screen; let cur = { x: 500, y: 500 }; scr.getCursorScreenPoint = () => cur;
+    const ev = (id, type) => panel.webContents.executeJavaScript(`document.getElementById('${id}').dispatchEvent(new PointerEvent('${type}',{button:0,bubbles:true}))`);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const before = panel.getBounds();
+    await ev("grip", "pointerdown"); for (let i = 1; i <= 6; i++) { cur = { x: 500 + 20 * i, y: 500 + 15 * i }; await wait(40); } await ev("grip", "pointerup"); await wait(100);
+    const afterResize = panel.getBounds();
+    cur = { x: 500, y: 500 };
+    await ev("top", "pointerdown"); for (let i = 1; i <= 40; i++) { cur = { x: 500 - 5 * i + (i % 3), y: 500 - 2.5 * i }; await wait(20); } await ev("top", "pointerup"); await wait(100);
+    testLog({ event: "after-resize-move", before, afterResize, afterMove: panel.getBounds(), saved: { w: settings.panelW, h: settings.panelH, pos: settings.panelPos }, gestureOver: !gesture });
+    const clickable = await panel.webContents.executeJavaScript("(() => { const r = document.getElementById('copy').getBoundingClientRect(); const e = document.elementFromPoint(r.x + 5, r.y + 5); return e && e.id; })()");
+    testLog({ event: "copy-button-on-top", clickable });
   }, 5000);
   setTimeout(() => shot(panel, "panel"), 7600);
   setTimeout(() => shot(button, "button"), 7700);

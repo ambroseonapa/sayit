@@ -21,10 +21,14 @@ function load() {
 function inside(p, b) { return p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height; }
 
 // opts: { getButton, onClick, onDrag(dx, dy), onDragEnd, onMenu }
-let lastPress = 0;
+let lastPress = 0, leftNow = false, lastClickAt = null;
 // true if Windows told us about a press on the mic in the last few seconds (then the window's own
 // click event is not needed, and ignoring it avoids counting a drag as a click)
 function sawPress() { return Date.now() - lastPress < 3000; }
+// is the main mouse button held down right now?
+function leftDown() { return leftNow; }
+// where you last clicked outside SayIt (that's usually where you're typing), or null
+function lastClick() { return lastClickAt && Date.now() - lastClickAt.t < 15 * 60000 ? lastClickAt : null; }
 
 function start(opts) {
   const api = opts.api || load(); // opts.api and opts.screen are only for tests
@@ -34,7 +38,7 @@ function start(opts) {
   let left = null, right = false;
   setInterval(() => {
     const btn = opts.getButton();
-    if (!btn || btn.isDestroyed() || !btn.isVisible()) { left = null; right = false; return; }
+    if (!btn || btn.isDestroyed()) { left = null; right = false; return; }
     let swapped = false;
     try { swapped = api.GetSystemMetrics(SM_SWAPBUTTON) !== 0; } catch {}
     const isDown = (vk) => (api.GetAsyncKeyState(vk) & 0x8000) !== 0;
@@ -42,6 +46,13 @@ function start(opts) {
     const rDown = isDown(swapped ? VK_LBUTTON : VK_RBUTTON);
     const p = scr.getCursorScreenPoint();
     const b = btn.getBounds();
+    if (lDown && !leftNow) {
+      const others = (opts.getOthers ? opts.getOthers() : []).filter((w) => w && !w.isDestroyed() && w.isVisible());
+      if (!inside(p, b) && !others.some((w) => inside(p, w.getBounds()))) lastClickAt = { x: p.x, y: p.y, h: 18, t: Date.now(), from: "click" };
+    }
+    leftNow = lDown;
+
+    if (!btn.isVisible()) { left = null; right = false; return; } // button hidden: only track clicks
 
     // primary button
     if (lDown && !left) {
@@ -65,4 +76,4 @@ function start(opts) {
   return true;
 }
 
-module.exports = { start, sawPress };
+module.exports = { start, sawPress, leftDown, lastClick };

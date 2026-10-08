@@ -53,7 +53,7 @@ async function transcribe(wav, s, prompt) {
     if (!r.ok) throw new Error(await errText(r));
     workingModel[which] = model;
     const data = await r.json();
-    return cleanWhisper(data.text || "");
+    return cleanWhisper(data.text || "", s);
   }
   throw new Error(lastErr || "speech service error");
 }
@@ -85,18 +85,13 @@ async function transcribeGemini(wav, s, prompt) {
     workingModel.gemini = model;
     const data = await r.json();
     const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
-    return cleanWhisper(parts.map((p) => p.text || "").join(" "));
+    return cleanWhisper(parts.map((p) => p.text || "").join(" "), s);
   }
   throw new Error(lastErr || "speech service error");
 }
 
-// Whisper sometimes "hears" these in silence or noise.
-const FAKE = /^(thank(s| you)( so much)?( for watching| for listening)?[.!]?|you[.!]?|bye[.!]?|\.+|subtitles by.*|.*amara\.org.*)$/i;
-function cleanWhisper(t) {
-  t = S.sayitNoLongDashes(String(t || "").trim());
-  if (!t || FAKE.test(t)) return "";
-  return t;
-}
+// Whisper sometimes "hears" things in silence or noise (see sayitCleanSpeech).
+function cleanWhisper(t, s) { return S.sayitCleanSpeech(t, vocabList(s || {})); }
 
 // ---------- grammar ----------
 function aiConfig(s) {

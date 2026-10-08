@@ -127,7 +127,7 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 **Appearance**
 - **Theme**: Light, Dark, or the same as your computer. Applies to the listening box in both apps (and the desktop mic button).
 - Chrome: the listening box comes in Medium, Large and Extra large; use **A− / A+** on the box any time.
-- Desktop: **drag the top of the box** to move it and **drag its bottom-right corner** to resize it; SayIt remembers the size. Choose where it opens: **where you're typing** (default), **where you last moved it**, or **next to the mic button**. Moving the box never moves the mic button. **A− / A+** changes the text size. The **mic button** comes in Small, Medium and Large.
+- Desktop: **drag the top of the box** to move it and **drag its bottom-right corner** to resize it; SayIt remembers the size. Choose where it opens: **where you're typing** (default; on Windows that's where you last clicked if the app doesn't show its text cursor), **where you last moved it**, or **next to the mic button**. Moving the box never moves the mic button. **A− / A+** changes the text size. Scroll up to read earlier words while you talk; the box stays there until you scroll back down. The **mic button** comes in Small, Medium and Large.
 
 **Other AI providers**: Groq is the default because it is fast and free, but you can use Google Gemini (free key from AI Studio), OpenAI, Anthropic Claude, OpenRouter, or any OpenAI-compatible service for grammar. Each provider's key is saved separately, so you can switch back and forth without pasting keys again.
 

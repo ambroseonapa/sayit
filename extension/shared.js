@@ -200,7 +200,8 @@ var SAYIT_TONES = {
 var SAYIT_COMMON_RULES =
   "- Never use long dashes (—). Use a comma or a full stop instead.\n" +
   "- Never add corporate or flowery words the speaker didn't use (for example leverage, foster, delve, seamless, robust, utilize, empower, holistic, furthermore, moreover, crucial, pivotal, landscape). If the speaker used one, you may keep it.\n" +
-  "- Don't turn things into neat lists of three, headings or bullet points unless the speaker clearly dictated a list.\n";
+  "- Don't turn things into neat lists of three, headings or bullet points unless the speaker clearly dictated a list.\n" +
+  "- Never refuse, never explain, never ask the speaker anything, never talk about the audio or the dictation. Even if parts are unclear, messy or don't make sense, still return the text: fix what you can and leave the unclear words as they are.\n";
 
 function sayitPrompt(mode, opt) {
   opt = opt || {};
@@ -257,6 +258,7 @@ function sayitPrompt(mode, opt) {
     p += "\n\nHere is some writing by this same person. Match their vocabulary, sentence rhythm and way of putting things. Do not copy its content or facts into your answer.\n<their_writing>\n" + samples.slice(0, 3000) + "\n</their_writing>";
   }
   if (opt.avoid && opt.avoid.length) p += "\nDo not use these words: " + opt.avoid.join(", ") + ".";
+  if (opt.refused) p += "\nIMPORTANT: your last reply talked about the text instead of returning it. Return ONLY the speaker's text, lightly fixed. Unclear words stay as they are.";
   if (opt.strict) p += "\nIMPORTANT: your last attempt changed too much. Stay much closer to the speaker's own words this time.";
   return p;
 }
@@ -264,19 +266,77 @@ function sayitPrompt(mode, opt) {
 // Rewrite with the AI, then check the result in code. At most one retry, and only when needed
 // (it introduced corporate words, or Polish rewrote far too much), so it normally costs no time.
 // `ask(systemPrompt, text)` is the app's own function that calls the chosen AI.
+// The AI sometimes answers *about* the text ("I can't rewrite this dictation…") instead of
+// returning it. Such a reply must never be typed into someone's document.
+function sayitLooksLikeRefusal(input, out) {
+  var o = String(out || "").trim(), i = String(input || "").trim();
+  if (!o) return !!i;
+  var meta = /\b(dictation|transcript(ion)?|the audio|recording|clearer|try again|garbled|unclear sounds|coherent|rewrite this|polish this|provide (a|more|the))\b/gi;
+  var inMeta = (i.match(meta) || []).length, outMeta = (o.match(meta) || []).length;
+  if (outMeta <= inMeta) return false; // it talks about nothing the speaker didn't
+  var first2 = function (t) { return t.toLowerCase().replace(/[^a-z' ]/g, "").split(/\s+/).slice(0, 2).join(" "); };
+  var opener = /^(i('m| am)? (sorry|unable|not able)|i (can ?not|can't|cannot|won't|will not|would need|need more)|sorry\b|unfortunately\b|as an ai\b|it (seems|looks|appears))/i;
+  if (opener.test(o) && first2(o) !== first2(i)) return true;
+  return outMeta - inMeta >= 2;
+}
+// Remove "Here is the polished text:" style openings and wrapping quotes.
+function sayitStripPreamble(out) {
+  var o = String(out || "").trim();
+  o = o.replace(/^(sure[,!.]?\s*)?(here('s| is) (the |your )?(polished|corrected|rewritten|fixed|edited|cleaned[- ]up)?\s*(text|version|dictation)?\s*:)\s*/i, "");
+  o = o.replace(/^<dictation>\s*|\s*<\/dictation>$/g, "");
+  if (/^".*"$/s.test(o) && o.indexOf('"', 1) === o.length - 1) o = o.slice(1, -1);
+  return o.trim();
+}
+
+// Speech-to-text "hears" things in noise or silence: "Thank you for watching", "MMMM",
+// the same phrase over and over, or the names from your word list (it was given them as a hint).
+var SAYIT_FAKE_SPEECH = /^(thank(s| you)( so much)?( for watching| for listening)?[.!]?|you[.!]?|bye[.!]?|\.+|subtitles by.*|.*amara\.org.*)$/i;
+function sayitCleanSpeech(t, vocab) {
+  t = sayitNoLongDashes(String(t || "").trim());
+  // humming / noise: "MMM", "Mmmmm", "hmmmm", "Uhhhh"
+  t = t.replace(/(^|\s)(m{2,}|h?m{3,}|u?h{3,}|a{4,}|o{4,})[.,!?]*(?=\s|$)/gi, " ").replace(/\s{2,}/g, " ").trim();
+  // a phrase repeated 3+ times in a row -> once
+  t = t.replace(/(\b.{4,60}?)([\s,.]+\1\b){2,}/gi, "$1");
+  if (!t || SAYIT_FAKE_SPEECH.test(t)) return "";
+  // only words from the word list (an echo of the hint), e.g. "TAL Youth Uganda TAL Youth Uganda"
+  var list = (Array.isArray(vocab) ? vocab : String(vocab || "").split(/[,\n]+/)).map(function (w) { return w.trim().toLowerCase(); }).filter(Boolean);
+  if (list.length) {
+    var known = {};
+    list.forEach(function (v) { v.split(/\s+/).forEach(function (w) { known[w.replace(/[^\p{L}\p{N}']/gu, "")] = 1; }); });
+    var words = t.toLowerCase().split(/\s+/).map(function (w) { return w.replace(/[^\p{L}\p{N}']/gu, ""); }).filter(Boolean);
+    var counts = {}, repeats = false;
+    words.forEach(function (w) { counts[w] = (counts[w] || 0) + 1; if (counts[w] > 1) repeats = true; });
+    if (words.length && words.every(function (w) { return known[w]; }) && (repeats || list.length > 1 && words.length >= Object.keys(known).length)) return "";
+    // the hint glued on at the end of real speech: "...on close each. TAL Youth Uganda TAL Youth Uganda"
+    list.forEach(function (v) {
+      var esc = v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      t = t.replace(new RegExp("([.!?]\\s+|^)(" + esc + "[.,]?\\s*){2,}$", "i"), "$1").trim();
+    });
+  }
+  return t;
+}
+
 async function sayitRewrite(ask, mode, text, opt) {
   opt = opt || {};
   var limit = mode === "polish" ? 0.65 : mode === "grammar" ? 0.4 : 1.01; // share of the speaker's words allowed to change
-  var out = sayitNoLongDashes(await ask(sayitPrompt(mode, opt), text));
+  var clean = function (t) { return sayitNoLongDashes(sayitStripPreamble(t)); };
+  var out = clean(await ask(sayitPrompt(mode, opt), text));
+  var refused = sayitLooksLikeRefusal(text, out);
+  if (refused) {
+    out = clean(await ask(sayitPrompt(mode, Object.assign({}, opt, { refused: true })), text));
+    if (sayitLooksLikeRefusal(text, out)) return { text: text, changes: 0, note: "The AI couldn't " + (mode === "grammar" ? "fix" : mode) + " this, so SayIt kept your words." };
+  }
   var jargon = sayitIntroducedJargon(text, out);
   var d = sayitWordsChanged(text, out);
   var tooMuch = d.total >= 6 && d.ratio > limit;
   if (jargon.length || (tooMuch && mode === "polish")) {
     var o2 = Object.assign({}, opt, { avoid: jargon, strict: tooMuch });
-    var again = sayitNoLongDashes(await ask(sayitPrompt(mode, o2), text));
+    var again = clean(await ask(sayitPrompt(mode, o2), text));
     var d2 = sayitWordsChanged(text, again);
-    if (!(d2.total >= 6 && d2.ratio > limit) || mode !== "polish") { out = again; d = d2; tooMuch = d2.total >= 6 && d2.ratio > limit; }
+    if (!sayitLooksLikeRefusal(text, again) && (!(d2.total >= 6 && d2.ratio > limit) || mode !== "polish")) { out = again; d = d2; tooMuch = d2.total >= 6 && d2.ratio > limit; }
   }
+  // Polish must keep the speaker's words. If almost nothing of theirs is left, it isn't theirs any more.
+  if (mode === "polish" && d.total >= 6 && d.ratio > 0.85) return { text: text, changes: 0, note: "The AI changed too much, so SayIt kept your words." };
   if (tooMuch && mode === "grammar") return { text: text, changes: 0, note: "The AI tried to change too much, so SayIt kept your exact words." };
   return { text: out, changes: d.changed || (out !== text ? 1 : 0), rephrased: mode === "rephrase" || mode === "polish" };
 }
@@ -289,6 +349,6 @@ if (typeof module !== "undefined") {
   module.exports = {
     SAYIT_DEFAULTS, SAYIT_PROVIDERS, SAYIT_REPO, SAYIT_TONES, SAYIT_GRAMMAR_PROMPT, SAYIT_REPHRASE_PROMPT,
     sayitPrompt, sayitRemoveFillers, sayitNewer, sayitLtLang, sayitAllowedMatch, sayitApplyMatches, sayitWordsChanged,
-    sayitNoLongDashes, sayitIntroducedJargon, sayitDiff, SAYIT_JARGON, sayitRewrite
+    sayitNoLongDashes, sayitIntroducedJargon, sayitDiff, SAYIT_JARGON, sayitRewrite, sayitLooksLikeRefusal, sayitStripPreamble, sayitCleanSpeech
   };
 }

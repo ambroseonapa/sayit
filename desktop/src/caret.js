@@ -1,7 +1,8 @@
 // Finds where you're typing, so the SayIt box can open right there.
 //  1. Windows: ask the system for the text cursor (caret) of the app in front. Works in Word,
 //     Notepad, Outlook and most classic apps. (Chrome, Edge and some newer apps don't report it.)
-//  2. Otherwise: the last place the mouse rested (that's where you clicked to start typing).
+//  2. Otherwise (Windows): where you last clicked, outside SayIt.
+//  3. Otherwise: the last place the mouse rested (that's where you clicked to start typing).
 const { screen } = require("electron");
 
 const isWin = process.platform === "win32";
@@ -73,13 +74,19 @@ function lastRestingPoint(avoid) {
   return null;
 }
 
+// Windows: where you last clicked (outside SayIt), from winmouse.js.
+let clickSource = null;
+function setClickSource(fn) { clickSource = fn; }
+
 // Where to open the box. `source` is "hotkey", "button" or "tray"; `avoid` is the button's area.
 function typingPoint(source, avoid) {
   const c = caretPoint();
   if (c) return c;
+  const k = clickSource && clickSource(); // the spot you clicked to start typing
+  if (k) return k;
   if (source === "button") return lastRestingPoint(avoid);
   const p = screen.getCursorScreenPoint();
   return { x: p.x, y: p.y, h: 18, from: "mouse" };
 }
 
-module.exports = { typingPoint, startTracking, caretPoint };
+module.exports = { typingPoint, startTracking, caretPoint, setClickSource };

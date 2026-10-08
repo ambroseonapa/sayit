@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.2
+**Desktop app**
+- Fixed: **dragging the box made it bigger and bigger** (Windows with display scaling of 125% or 150%). The box now keeps its exact size when you move it. If your box had grown too big, it is set back to the normal size once.
+- Fixed: after dragging, the box could **freeze**: Copy, the mode button and dragging stopped responding until SayIt was restarted.
+- Resizing from the edges of the box is now remembered too. The default box is a little smaller (a wide square).
+- **Scroll back while you talk**: if you scroll up to read what you said, the box stays there instead of jumping back to the newest words. Scroll to the bottom and it follows again.
+- **The box opens where you clicked to type** (Windows), also in Chrome, Edge and other apps that don't show their text cursor to SayIt.
+
+**Both**
+- Fixed: Polish, Rephrase or Fix grammar could type the AI's *comment* into your document (for example "I can't rewrite this dictation because…"). SayIt now spots that, asks again, and if it still happens it inserts your own words.
+- Less "ghost" text from background noise: humming like "MMMM", the same phrase repeated over and over, and names from your word list that you didn't say (such as "TAL Youth Uganda TAL Youth Uganda") are removed.
+
 ## 0.8.1
 **Desktop app (Windows)**
 - Fixed: **clicking the floating mic did nothing** on some Windows computers; only `Alt+Shift+D` opened the box. SayIt now reads the mouse straight from Windows, so one click opens the box and starts listening. Dragging the mic and right-click work the same way.

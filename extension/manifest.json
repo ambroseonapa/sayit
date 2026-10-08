@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SayIt – speak into any text box",
   "short_name": "SayIt",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Tap the mic, speak, and your words land in the box you're typing in, with grammar and punctuation fixed. It never rewrites you unless you ask.",
   "icons": {
     "16": "icons/icon16.png",
