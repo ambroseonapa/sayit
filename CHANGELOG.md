@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.6
+**Desktop app**
+- Fixed (again, at the real cause): **the box "froze" after some minutes**: Done, Copy and dragging stopped working, while `Alt+Shift+D` still worked. The box wasn't frozen; Windows had stopped giving it mouse clicks, because it never takes focus. SayIt now also reads your clicks on the box straight from Windows (like the mic button since 0.8.1), so Done, Copy, the mode button, moving and resizing keep working.
+- Fixed: **the mic button disappeared** behind other windows. Every 2 seconds SayIt puts the mic and the box back on top.
+- **Bring the mic back**: open SayIt from the Start menu (or Applications on Mac) and the mic comes back on top, also if it was off screen. The tray menu also has **Bring back the mic button**. Settings only open if a key is missing.
+- The box now says **which AI did the work**, for example "Rephrased by Anthropic (Claude) (claude-haiku-4-5) in 2.3 s".
+
+**Both**
+- **Clearer speech**: SayIt now uses Whisper's most accurate model (large-v3) first, sends longer pieces of speech (whole sentences are understood better), and no longer uses the browser's noise filter, which could cut off the ends of words.
+- The Chrome extension also shows which AI did the work ("Rephrased by Anthropic (Claude)").
+
 ## 0.8.5
 **Desktop app**
 - Fixed: **the box could freeze after several minutes of talking** (Done and Copy stopped responding). Windows sometimes treated the box, which never takes focus, as hidden and stopped drawing it. SayIt now keeps it drawn and running. As a safety net, if the box ever stops responding, SayIt copies everything you said so far, tells you to press Ctrl+V, and opens a fresh box.

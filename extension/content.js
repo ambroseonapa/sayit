@@ -787,7 +787,8 @@
       const actions = [];
       if (out !== rawOut) actions.push(["Original", () => replaceLast(rawOut), "Put back your exact words"]);
       actions.push(["↶ Undo", () => replaceLast(""), "Remove what was inserted (or press Ctrl+Z)"]);
-      pill(mode === "exact" ? "Inserted" : res.rephrased ? "Rephrased" : out === rawOut ? "Inserted" : "Fixed", actions);
+      const verb = mode === "exact" ? "Inserted" : res.rephrased ? (mode === "polish" ? "Polished" : "Rephrased") : out === rawOut ? "Inserted" : "Fixed";
+      pill(verb + (res.by && verb !== "Inserted" ? " by " + res.by : ""), actions); // shows which AI did it
     } catch (err) {
       console.warn("SayIt", err);
       reset();

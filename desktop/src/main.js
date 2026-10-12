@@ -193,6 +193,7 @@ function trayMenu() {
   return Menu.buildFromTemplate([
     { label: "Start / stop speaking", accelerator: settings.hotkey, click: () => toggle("tray") },
     { type: "separator" },
+    { label: "Bring back the mic button", click: bringBackButton },
     { label: "Show floating button", type: "checkbox", checked: settings.showBubble, click: (m) => setShowBubble(m.checked) },
     { label: "Start SayIt when computer starts", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin,
       click: (m) => app.setLoginItemSettings({ openAtLogin: m.checked }) },
@@ -394,6 +395,7 @@ function panelSize() {
 }
 function startGesture(kind) {
   if (!panel || panel.isDestroyed()) return;
+  if (gesture && gesture.kind === kind && Date.now() - gesture.t < 1500) return; // already started (Windows and the box both told us)
   endGesture();
   const p = screen.getCursorScreenPoint(), b = panel.getBounds(), z = panelSize();
   gesture = { kind, sx: p.x, sy: p.y, x: b.x, y: b.y, w: kind === "resize" ? b.width : z.w, h: kind === "resize" ? b.height : z.h, t: Date.now() };
@@ -492,6 +494,16 @@ app.whenReady().then(() => {
   caret.startTracking();
   if (isWin && !TEST) nativeMouse = winmouse.start({
     getButton: () => button, getOthers: () => [panel, settingsWin], onClick: () => buttonClick("windows"),
+    getPanel: () => panel,
+    onPanelPress: (pt) => {
+      panel.webContents.executeJavaScript(`window.__sayitHit ? window.__sayitHit(${pt.x}, ${pt.y}) : ""`).then((what) => {
+        if (what === "top") startGesture("move"); else if (what === "grip") startGesture("resize");
+      }).catch(() => {});
+    },
+    onPanelRelease: (pt) => {
+      if (pt.moved || gesture) return;
+      panel.webContents.executeJavaScript(`window.__sayitNativeClick ? window.__sayitNativeClick(${pt.x}, ${pt.y}) : ""`).then((r) => { if (r) debugLog("box click from Windows: " + r); }).catch(() => {});
+    },
     onDrag: dragButton, onDragEnd: dragButtonEnd, onMenu: buttonMenu
   });
   if (nativeMouse) caret.setClickSource(winmouse.lastClick);
@@ -508,10 +520,31 @@ app.whenReady().then(() => {
 });
 // Opening SayIt again (Start menu, desktop shortcut, Applications) while it's running:
 // bring the floating button back and show settings.
+// Opening SayIt again (Start menu, desktop shortcut, Applications) while it's running brings
+// the mic button back on top of everything. Settings only open if a key is still missing.
 app.on("second-instance", () => {
-  if (!settings.showBubble) setShowBubble(true); else if (button && !button.isVisible()) button.showInactive();
-  openSettings();
+  bringBackButton();
+  if (!core.speechKey(settings)) openSettings();
 });
+function bringBackButton() {
+  if (!button || button.isDestroyed()) createButton();
+  if (!settings.showBubble) { settings.showBubble = true; saveSettings(); buildTray(); }
+  const b = button.getBounds(), d = screen.getDisplayMatching(b).workArea;
+  const onScreen = b.x >= d.x - 10 && b.y >= d.y - 10 && b.x + b.width <= d.x + d.width + 10 && b.y + b.height <= d.y + d.height + 10;
+  if (!onScreen) { settings.pos = null; saveSettings(); }
+  button.setBounds(buttonBounds());
+  button.setAlwaysOnTop(true, "screen-saver");
+  button.showInactive(); button.moveTop();
+  debugLog("mic button brought back" + (onScreen ? "" : " (it was off screen)"));
+}
+// Windows can quietly push "always on top" windows behind others (after full-screen apps,
+// sleep, or another always-on-top app). Every 2 seconds, put SayIt's windows back on top.
+setInterval(() => {
+  for (const w of [button, panel]) {
+    if (!w || w.isDestroyed() || !w.isVisible()) continue;
+    try { if (!w.isAlwaysOnTop()) w.setAlwaysOnTop(true, "screen-saver"); w.moveTop(); } catch {}
+  }
+}, 2000);
 app.on("window-all-closed", (e) => e.preventDefault && e.preventDefault()); // keep running in the tray
 app.on("will-quit", () => { globalShortcut.unregisterAll(); saveSettings(true); });
 
@@ -556,6 +589,16 @@ function runTest() {
     await panel.webContents.executeJavaScript("document.getElementById('copy').click()");
     setTimeout(async () => testLog({ event: "copy", clipboard: require("electron").clipboard.readText(), label: await panel.webContents.executeJavaScript("document.getElementById('copy').textContent") }), 300);
   }, 9000);
+  if (process.env.SAYIT_NATIVE) setTimeout(async () => {
+    const r = await panel.webContents.executeJavaScript(`(() => { const c = document.getElementById('copy').getBoundingClientRect(), t = document.getElementById('status').getBoundingClientRect(), g = document.getElementById('grip').getBoundingClientRect();
+      return { hitTop: __sayitHit(t.x + 5, t.y + 5), hitGrip: __sayitHit(g.x + 8, g.y + 8), hitCopy: __sayitHit(c.x + 5, c.y + 5), copy: [c.x + 5, c.y + 5] }; })()`);
+    const clicked = await panel.webContents.executeJavaScript(`__sayitNativeClick(${r.copy[0]}, ${r.copy[1]})`);
+    await new Promise((res) => setTimeout(res, 100));
+    const label = await panel.webContents.executeJavaScript("document.getElementById('copy').textContent");
+    button.setBounds({ x: -500, y: -500, width: 64, height: 64 }); button.hide(); settings.showBubble = false;
+    bringBackButton();
+    testLog({ event: "native", ...r, clicked, label, clipboard: require("electron").clipboard.readText().slice(0, 40), buttonBack: { visible: button.isVisible(), bounds: button.getBounds(), onTop: button.isAlwaysOnTop() } });
+  }, 8000);
   if (process.env.SAYIT_SHOT_KEYS) setTimeout(async () => { if (!settingsWin) return;
     await settingsWin.webContents.executeJavaScript("document.getElementById('provider').scrollIntoView(); window.scrollBy(0,-90)");
     await new Promise((r) => setTimeout(r, 300)); settingsWin.webContents.capturePage().then((img) => fs.writeFileSync(TEST + ".keys.png", img.toPNG()));

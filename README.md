@@ -102,7 +102,7 @@ There is no time limit. Talk for as long as you like; if the internet drops for 
 ## Closing SayIt and getting it back (desktop)
 
 - **Hide just the button:** right-click the floating mic → **Hide floating button**. SayIt keeps working with the shortcut (`Alt+Shift+D`).
-- **Bring the button back:** right-click the SayIt icon in the tray (Windows, near the clock) or menu bar (Mac) → **Show floating button**. Or simply open SayIt again (next point).
+- **Bring the button back:** open **SayIt** again from the Start menu (Windows) or Applications (Mac): the mic comes back on top, even if it was hidden, behind other windows or off screen. Or right-click the SayIt icon in the tray (near the clock) or menu bar → **Bring back the mic button**.
 - **Quit completely:** tray / menu-bar icon → **Quit SayIt**.
 - **Open it again after quitting:** no need to reinstall. On Windows, open **SayIt** from the Start menu or the desktop shortcut. On Mac, open **SayIt** from Applications. Opening SayIt also brings back a hidden button.
 - **Starts with your computer:** SayIt starts automatically when you log in. To stop that, untick **Start SayIt when computer starts** in the tray / menu-bar menu.

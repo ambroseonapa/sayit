@@ -132,11 +132,11 @@ async function polish(text, mode) {
 
   if (mode === "rephrase" || mode === "polish") {
     if (!ai) return { text: sayitNoLongDashes(text), changes: 0, note: (mode === "polish" ? "Polish" : "Rephrase") + " needs an AI key (SayIt settings). Inserted your words." };
-    return await sayitRewrite(ask, mode, s.fillers ? sayitRemoveFillers(text) : text, s);
+    return { ...(await sayitRewrite(ask, mode, s.fillers ? sayitRemoveFillers(text) : text, s)), by: SAYIT_PROVIDERS[ai.provider].name };
   }
   if (s.engine === "ai" && ai) {
     const r = await sayitRewrite(ask, "grammar", text, s);
-    return { ...r, rephrased: false, ai: true };
+    return { ...r, rephrased: false, ai: true, by: SAYIT_PROVIDERS[ai.provider].name };
   }
   const r = await languageTool(s.fillers ? sayitRemoveFillers(text) : text, s.lang);
   return { ...r, text: sayitNoLongDashes(r.text) };
@@ -234,7 +234,7 @@ async function errText(r) {
 
 // ---------- Whisper: most accurate speech-to-text (Groq or OpenAI key) ----------
 const WHISPER = {
-  groq: { url: "https://api.groq.com/openai/v1/audio/transcriptions", models: ["whisper-large-v3-turbo", "whisper-large-v3"] },
+  groq: { url: "https://api.groq.com/openai/v1/audio/transcriptions", models: ["whisper-large-v3", "whisper-large-v3-turbo"] }, // the full model hears accents and names better; turbo is the backup
   openai: { url: "https://api.openai.com/v1/audio/transcriptions", models: ["gpt-4o-mini-transcribe", "whisper-1"] }
 };
 

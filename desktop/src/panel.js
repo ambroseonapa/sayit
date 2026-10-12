@@ -83,6 +83,28 @@ function dragger(el, onStart, skip) {
   window.addEventListener("blur", end);
 }
 dragger($("top"), () => api.panelMoveStart(), (e) => e.target.closest("button"));
+
+// Windows backup (see winmouse.js): the app tells us about presses it saw, in case the box
+// itself didn't get them. If the box did get the click, we ignore the backup.
+let lastRealUp = 0;
+window.addEventListener("pointerup", () => { lastRealUp = Date.now(); }, true);
+window.addEventListener("click", () => { lastRealUp = Date.now(); }, true);
+window.__sayitHit = (x, y) => {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return "";
+  if (el.closest("#grip")) return "grip";
+  if (el.closest("#top") && !el.closest("button")) return "top";
+  return el.closest("button") ? "button" : "";
+};
+window.__sayitNativeClick = (x, y) => new Promise((resolve) => {
+  setTimeout(() => { // give the box's own click a moment to arrive first
+    if (Date.now() - lastRealUp < 600) return resolve("");
+    const el = document.elementFromPoint(x, y), b = el && el.closest("button, a");
+    if (!b || b.disabled || b.hidden) return resolve("");
+    b.click();
+    resolve(b.id || b.textContent.trim());
+  }, 120);
+});
 dragger($("grip"), () => api.panelResizeStart());
 
 // ---------- UI ----------
@@ -156,8 +178,9 @@ function onFrame(f) {
     }
     if (cur.speech < 5) return;
   }
-  // You paused (0.6 s) after at least a second of talking, or this piece is getting long: send it now.
-  if ((cur.silence >= 30 && secs >= 1.0) || secs >= 25) cutSegment();
+  // Send a piece when you pause. Speech-to-text hears better with whole sentences, so a short
+  // pause (0.6 s) only counts after 4 s of talking; before that we wait for a longer pause (1.2 s).
+  if ((cur.silence >= 30 && secs >= 4) || (cur.silence >= 60 && secs >= 1.0) || secs >= 28) cutSegment();
   else if (cur.speech === 5) paintText();
 }
 
@@ -180,7 +203,7 @@ function cutSegment() {
 }
 
 async function startMic() {
-  stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 } }); // no browser noise filter: it cuts off word endings, and Whisper copes with background noise itself
   ctx = new AudioContext({ sampleRate: RATE, latencyHint: "interactive" });
   if (ctx.state !== "running") await ctx.resume();
   await ctx.audioWorklet.addModule("recorder-worklet.js");
@@ -316,7 +339,7 @@ async function finish() {
     return;
   }
 
-  let note = "";
+  let note = "", didBy = "";
   if (settings.mode !== "exact") {
     $("status").textContent = settings.mode === "rephrase" ? "Rephrasing…" : settings.mode === "polish" ? "Polishing…" : "Fixing grammar…";
     const slow = settings.mode === "rephrase" || settings.mode === "polish";
@@ -327,6 +350,7 @@ async function finish() {
     if (r && !r.error && r.text) text = r.text;
     else if (r && r.error) note = "grammar fix skipped (" + r.error + ")";
     if (r && r.note) note = r.note;
+    if (r && r.by && !r.error) didBy = (settings.mode === "rephrase" ? "Rephrased" : settings.mode === "polish" ? "Polished" : "Fixed") + " by " + r.by + (r.ms ? " in " + (r.ms / 1000).toFixed(1) + " s" : "");
     if (settings.showChanges && !note && text.trim() !== said.trim()) {
       const pick = await review(said, text);
       if (pick === null) { segs = []; close(); return; }
@@ -344,8 +368,8 @@ async function finish() {
   }
   const lost = segs.some((x) => x.status === "failed") ? "some words were lost (" + (lastError || "slow connection") + ")" : "";
   const warn = [note, lost].filter(Boolean).join("; ");
-  setState("done", warn ? "Inserted, but " + warn : "Inserted · " + undoKey + " to undo");
-  doneTimer = setTimeout(() => { if (state === "done") close(); }, warn ? 4000 : 1200);
+  setState("done", warn ? "Inserted, but " + warn : (didBy ? didBy + " · " : "Inserted · ") + undoKey + " to undo");
+  doneTimer = setTimeout(() => { if (state === "done") close(); }, warn ? 4000 : didBy ? 2500 : 1200);
 }
 
 paintStatic();

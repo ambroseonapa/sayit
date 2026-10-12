@@ -57,8 +57,9 @@ function onFrame(f) {
   }
   if (!cur.told) { cur.told = true; send({ type: "speaking" }); }
   const secs = cur.frames.length * FRAME / RATE;
-  // A pause of 0.6 s after at least a second of talking, or a long piece: send it now.
-  if ((cur.silence >= 30 && secs >= 1.0) || secs >= 25) cut();
+  // Send a piece when you pause. Speech-to-text hears better with whole sentences, so a short
+  // pause (0.6 s) only counts after 4 s of talking; before that we wait for a longer pause (1.2 s).
+  if ((cur.silence >= 30 && secs >= 4) || (cur.silence >= 60 && secs >= 1.0) || secs >= 28) cut();
 }
 
 function cut() {
@@ -71,7 +72,7 @@ function cut() {
 
 async function start() {
   await stop(true);
-  stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 } }); // no browser noise filter: it cuts off word endings, and Whisper copes with background noise itself
   running = true; cur = null; noise = 0.004; seq = 0; frames = 0; chunks = [];
   // Backup: a plain recording of everything, used only if the live cutting gets no audio.
   try {

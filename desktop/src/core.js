@@ -2,7 +2,7 @@
 const S = require("./shared.js");
 
 const WHISPER = {
-  groq: { url: "https://api.groq.com/openai/v1/audio/transcriptions", models: ["whisper-large-v3-turbo", "whisper-large-v3"] },
+  groq: { url: "https://api.groq.com/openai/v1/audio/transcriptions", models: ["whisper-large-v3", "whisper-large-v3-turbo"] }, // the full model hears accents and names better; turbo is the backup
   openai: { url: "https://api.openai.com/v1/audio/transcriptions", models: ["gpt-4o-mini-transcribe", "whisper-1"] }
 };
 
@@ -114,6 +114,7 @@ async function polish(text, s, mode) {
   if (!ai) return { text: S.sayitNoLongDashes(text), changes: 0 }; // Whisper already punctuates; without an AI key we keep its text
   const r = await S.sayitRewrite((system, t) => callAI(ai, system, t), mode === "polish" || mode === "rephrase" ? mode : "grammar", text, s);
   if (mode !== "polish" && mode !== "rephrase") r.rephrased = false;
+  r.by = (S.SAYIT_PROVIDERS[ai.provider] || {}).name + " (" + ai.model + ")"; // shown in the box, so you can see which AI did it
   return r;
 }
 

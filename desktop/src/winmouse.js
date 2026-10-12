@@ -35,7 +35,7 @@ function start(opts) {
   const scr = opts.screen || screen;
   if (!api) return false;
   const VK_LBUTTON = 0x01, VK_RBUTTON = 0x02, SM_SWAPBUTTON = 23;
-  let left = null, right = false;
+  let left = null, right = false, pp = null; // pp = a press on the box (panel)
   setInterval(() => {
     const btn = opts.getButton();
     if (!btn || btn.isDestroyed()) { left = null; right = false; return; }
@@ -51,6 +51,22 @@ function start(opts) {
       if (!inside(p, b) && !others.some((w) => inside(p, w.getBounds()))) lastClickAt = { x: p.x, y: p.y, h: 18, t: Date.now(), from: "click" };
     }
     leftNow = lDown;
+
+    // The box: Windows sometimes stops giving it clicks after a while (it never takes focus),
+    // so we read presses on it here too. main.js decides what they do (click, move, resize).
+    const panel = opts.getPanel && opts.getPanel();
+    if (panel && !panel.isDestroyed() && panel.isVisible()) {
+      const pb = panel.getBounds();
+      if (lDown && !pp) {
+        pp = inside(p, pb) && !(btn.isVisible() && inside(p, b)) ? { sx: p.x, sy: p.y, moved: false, t: Date.now() } : { outside: true };
+        if (!pp.outside && opts.onPanelPress) opts.onPanelPress({ x: p.x - pb.x, y: p.y - pb.y });
+      } else if (lDown && pp && !pp.outside) {
+        if (!pp.moved && Math.hypot(p.x - pp.sx, p.y - pp.sy) >= 6) pp.moved = true;
+      } else if (!lDown && pp) {
+        const was = pp; pp = null;
+        if (!was.outside && opts.onPanelRelease) opts.onPanelRelease({ x: p.x - pb.x, y: p.y - pb.y, moved: was.moved });
+      }
+    } else pp = null;
 
     if (!btn.isVisible()) { left = null; right = false; return; } // button hidden: only track clicks
 
