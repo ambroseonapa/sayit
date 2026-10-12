@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.7
+**Desktop app (Windows)**
+- Fixed at the root: **the box stopped responding to clicks** (✕, Done, Copy, dragging) while `Alt+Shift+D` still worked. The box was made so it never takes focus, so your cursor stayed in your app, and Windows sometimes ignores clicks on that kind of window. The box is now a normal window you can always click. SayIt remembers which app you were typing in and switches back to it before it types your words (and when you cancel).
+- If you click into another app while SayIt is listening, your words go there instead.
+
 ## 0.8.6
 **Desktop app**
 - Fixed (again, at the real cause): **the box "froze" after some minutes**: Done, Copy and dragging stopped working, while `Alt+Shift+D` still worked. The box wasn't frozen; Windows had stopped giving it mouse clicks, because it never takes focus. SayIt now also reads your clicks on the box straight from Windows (like the mic button since 0.8.1), so Done, Copy, the mode button, moving and resizing keep working.

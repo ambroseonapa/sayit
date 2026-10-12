@@ -15,6 +15,10 @@ function winApi() {
     const koffi = require("koffi");
     const user32 = koffi.load("user32.dll");
     win = {
+      koffi,
+      GetForegroundWindow: user32.func("void * __stdcall GetForegroundWindow()"),
+      SetForegroundWindow: user32.func("bool __stdcall SetForegroundWindow(void *hWnd)"),
+      IsWindow: user32.func("bool __stdcall IsWindow(void *hWnd)"),
       keybd_event: user32.func("void __stdcall keybd_event(uint8_t bVk, uint8_t bScan, uint32_t dwFlags, uintptr_t dwExtraInfo)"),
       GetAsyncKeyState: user32.func("int16_t __stdcall GetAsyncKeyState(int vKey)")
     };
@@ -79,7 +83,39 @@ function restoreClipboard(old) {
   } catch {}
 }
 
-async function typeText(text) {
+// ---------- Windows: remember the app you were typing in, and go back to it ----------
+// The SayIt box is a normal window you can click (Windows sometimes ignored clicks on a box that
+// never takes focus). Clicking it moves the focus to SayIt, so before typing we switch back to
+// the app you were in when you started speaking.
+let target = null;
+function rememberTarget(ownHandles) {
+  if (!isWin) return;
+  const api = winApi(); if (!api) return;
+  try {
+    const fg = api.GetForegroundWindow();
+    const addr = fg ? Number(api.koffi.address(fg)) : 0;
+    if (addr && !ownHandles.includes(addr)) target = fg;
+  } catch {}
+}
+async function restoreTarget(ownHandles) {
+  if (!isWin || !target) return;
+  const api = winApi(); if (!api) return;
+  try {
+    if (!api.IsWindow(target)) return;
+    const fg = api.GetForegroundWindow();
+    const addr = fg ? Number(api.koffi.address(fg)) : 0;
+    if (addr && !ownHandles.includes(addr)) return; // you're already in an app (maybe you clicked into another one): type there
+    if (!api.SetForegroundWindow(target)) {
+      // Windows only lets the app in front switch windows; a quick Alt press counts as "in front".
+      api.keybd_event(VK.ALT, 0, 0, 0); api.keybd_event(VK.ALT, 0, KEYUP, 0);
+      api.SetForegroundWindow(target);
+    }
+    await sleep(120); // let the app put its cursor back
+  } catch {}
+}
+
+async function typeText(text, ownHandles) {
+  await restoreTarget(ownHandles || []);
   const old = saveClipboard();
   clipboard.writeText(text);
   await sleep(30);
@@ -90,4 +126,4 @@ async function typeText(text) {
   setTimeout(() => { if (clipboard.readText() === text) restoreClipboard(old); }, 900);
 }
 
-module.exports = { typeText };
+module.exports = { typeText, rememberTarget, restoreTarget };

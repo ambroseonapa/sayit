@@ -2,7 +2,7 @@ const { app, BrowserWindow, globalShortcut, ipcMain, screen, Tray, Menu, nativeI
 const path = require("path");
 const fs = require("fs");
 const core = require("./core.js");
-const { typeText } = require("./paste.js");
+const { typeText, rememberTarget, restoreTarget } = require("./paste.js");
 const caret = require("./caret.js");
 const winmouse = require("./winmouse.js");
 const updater = require("./updater.js");
@@ -121,6 +121,7 @@ function createPanel() {
   panel = floatingWindow({
     width: settings.panelW, height: settings.panelH, minWidth: PANEL_MIN.w, minHeight: PANEL_MIN.h,
     resizable: true, hasShadow: true, roundedCorners: true,
+    focusable: true, // a normal, clickable window (see paste.js: SayIt goes back to your app before typing)
     backgroundColor: themeResolved() === "dark" ? "#1c1f26" : "#ffffff"
   });
   panel.loadFile(path.join(__dirname, "panel.html"));
@@ -225,9 +226,17 @@ function setShowBubble(v) {
 }
 
 // ---------- start / stop ----------
+// Window handles of SayIt's own windows (so we never treat them as "the app you were typing in").
+function ownHandles() {
+  return [button, panel, settingsWin].filter((w) => w && !w.isDestroyed()).map((w) => {
+    const h = w.getNativeWindowHandle();
+    return h.length >= 8 ? Number(h.readBigUInt64LE(0)) : h.readUInt32LE(0);
+  });
+}
 function toggle(source) {
   if (!panel) return;
   if (panelState === "idle" || panelState === "done") {
+    rememberTarget(ownHandles());
     panel.setBounds(panelBounds(source));
     panel.showInactive();
   }
@@ -283,7 +292,7 @@ ipcMain.handle("polish", async (_e, text, mode) => {
   catch (e) { return { error: e.message }; }
 });
 ipcMain.handle("type", async (_e, text) => {
-  try { if (TEST) await testType(text); else await typeText(text); return { ok: true }; }
+  try { if (TEST) await testType(text); else await typeText(text, ownHandles()); return { ok: true }; }
   catch (e) {
     if (isMac) return { error: "mac-accessibility" };
     return { error: e.message };
@@ -343,7 +352,11 @@ ipcMain.on("panel-state", (_e, s) => {
   if (s === "idle") panelText = "";
   setEscape(active);
   if (button && !button.isDestroyed()) button.webContents.send("recording", s === "listening");
-  if (s === "idle" && panel) panel.hide();
+  if (s === "idle" && panel) {
+    // If you clicked the box (so it has the focus), go back to your app first, then hide it.
+    if (panel.isFocused()) restoreTarget(ownHandles()).finally(() => { if (panelState === "idle") panel.hide(); });
+    else panel.hide();
+  }
   else if (panel && !panel.isVisible()) { panel.setBounds(panelBounds("tray")); panel.showInactive(); }
 });
 // One click on the mic = one start/stop. The same click can reach us twice (from Windows
@@ -497,6 +510,7 @@ app.whenReady().then(() => {
     getPanel: () => panel,
     onPanelPress: (pt) => {
       panel.webContents.executeJavaScript(`window.__sayitHit ? window.__sayitHit(${pt.x}, ${pt.y}) : ""`).then((what) => {
+        debugLog("box pressed: " + (what || "text"));
         if (what === "top") startGesture("move"); else if (what === "grip") startGesture("resize");
       }).catch(() => {});
     },
